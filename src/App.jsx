@@ -89,7 +89,7 @@ const VOTE_FIELDS = [
   { key:"period",  label:"⑥ 期日前投票期間", placeholder:"4 / 5 ㊊ ～ 4 / 10 ㊏", required:true, hint:"エリアいっぱいに表示" },
 ];
 
-const SS_KEY = "sanseito_banner_v9";
+const SS_KEY = "sanseito_banner_v12";
 
 // ──────────────────────────────────────────────────────────
 export default function App() {
@@ -100,10 +100,11 @@ export default function App() {
 
   const [screen,     setScreen]     = useState(saved?.screen     || "edit");
   const [values,     setValues]     = useState(saved?.values     || {});
-  const [offsets,    setOffsets]    = useState(saved?.offsets    || {});  // { key: {x,y} }
-  const [scales,     setScales]     = useState(saved?.scales     || {});  // { key: number }
+  const [offsets,    setOffsets]    = useState(saved?.offsets    || {});
+  const [scales,     setScales]     = useState(saved?.scales     || {});
   const [photo,      setPhoto]      = useState(saved?.photo      || null);
   const [photoImg,   setPhotoImg]   = useState(null);
+  const [bgImg,      setBgImg]      = useState(null);  // 背景画像
   const [photoScale, setPhotoScale] = useState(saved?.photoScale || 1);
   const [photoPos,   setPhotoPos]   = useState(saved?.photoPos   || {x:0,y:0});
   const [generating, setGenerating] = useState(false);
@@ -130,6 +131,14 @@ export default function App() {
     );
   }, []);
 
+  // 背景画像を読み込む
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setBgImg(img);
+    img.onerror = () => console.warn("背景画像の読み込み失敗");
+    img.src = "/bg.png";
+  }, []);
+
   useEffect(() => {
     if (!photo) { setPhotoImg(null); return; }
     const img = new Image();
@@ -141,15 +150,15 @@ export default function App() {
     if (screen !== "preview" || !previewRef.current) return;
     previewRef.current.width  = PW;
     previewRef.current.height = PH;
-    drawBanner(previewRef.current, values, offsets, scales, photoImg, photoScale, photoPos, PW, PH);
-  }, [screen, values, offsets, scales, photoImg, photoScale, photoPos, fontsReady, PW, PH]);
+    drawBanner(previewRef.current, values, offsets, scales, photoImg, bgImg, photoScale, photoPos, PW, PH);
+  }, [screen, values, offsets, scales, photoImg, bgImg, photoScale, photoPos, fontsReady, PW, PH]);
 
   const handleGenerate = async () => {
     setGenerating(true);
     await new Promise(r => setTimeout(r, 80));
     const canvas = document.createElement("canvas");
     canvas.width = CW; canvas.height = CH;
-    drawBanner(canvas, values, offsets, scales, photoImg, photoScale, photoPos, CW, CH);
+    drawBanner(canvas, values, offsets, scales, photoImg, bgImg, photoScale, photoPos, CW, CH);
     setDownloadUrl(canvas.toDataURL("image/png"));
     setGenerating(false);
     setScreen("done");
@@ -394,14 +403,14 @@ function PreviewScreen({ values, offsets, scales, photoImg, photoScale, photoPos
         📌 テキスト・写真をドラッグで移動<br/>
         🤏 テキスト・写真をピンチで拡大縮小（縦横比固定）
       </p>
-      <div style={{ display:"flex", justifyContent:"center", borderRadius:10, overflow:"hidden", boxShadow:`0 8px 40px ${C.g1}25`, border:`2px solid ${C.g1}`, background:"repeating-conic-gradient(#bbb 0% 25%,#fff 0% 50%) 0 0/14px 14px" }}>
+      <div style={{ display:"flex", justifyContent:"center", borderRadius:10, overflow:"hidden", boxShadow:`0 8px 40px ${C.g1}25`, border:`2px solid ${C.g1}` }}>
         <canvas ref={canvasRef} width={PW} height={PH}
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
           style={{ display:"block", cursor:isDragging?"grabbing":"grab", touchAction:"none", userSelect:"none" }}
         />
       </div>
-      <p style={{ textAlign:"center", fontSize:10, color:C.gray, marginTop:6 }}>チェック柄＝透明エリア　出力：1080×1920px 透過PNG</p>
+      <p style={{ textAlign:"center", fontSize:10, color:C.gray, marginTop:6 }}>出力：1080×1920px PNG</p>
       <div style={{ display:"flex", gap:10, marginTop:14 }}>
         <button onClick={onEdit} style={{ padding:"14px 18px", background:"transparent", border:`1.5px solid ${C.grayL}`, borderRadius:12, color:C.inkS, fontSize:13, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer", flexShrink:0 }}>← 修正する</button>
         <PrimaryBtn onClick={onGenerate} disabled={generating} flex>
@@ -419,10 +428,10 @@ function DoneScreen({ downloadUrl, onReset }) {
       <div style={{ textAlign:"center", marginBottom:24 }}>
         <div style={{ width:68, height:68, borderRadius:"50%", margin:"0 auto 12px", background:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, boxShadow:`0 8px 28px ${C.g1}50` }}>✓</div>
         <h2 style={{ margin:0, fontSize:20, fontWeight:900 }}>バナー完成！</h2>
-        <p style={{ margin:"6px 0 0", fontSize:12, color:C.gray }}>1080×1920px 背景透過PNG</p>
+        <p style={{ margin:"6px 0 0", fontSize:12, color:C.gray }}>1080×1920px PNG</p>
       </div>
       {downloadUrl && (
-        <div style={{ borderRadius:12, overflow:"hidden", border:`2px solid ${C.g1}`, marginBottom:18, background:"repeating-conic-gradient(#bbb 0% 25%,#fff 0% 50%) 0 0/14px 14px", display:"flex", justifyContent:"center", maxHeight:480 }}>
+        <div style={{ borderRadius:12, overflow:"hidden", border:`2px solid ${C.g1}`, marginBottom:18, display:"flex", justifyContent:"center", maxHeight:480 }}>
           <img src={downloadUrl} style={{ height:480, width:"auto", display:"block" }} />
         </div>
       )}
@@ -433,32 +442,28 @@ function DoneScreen({ downloadUrl, onReset }) {
 }
 
 // ── Canvas描画 ─────────────────────────────────────────────
-function drawBanner(canvas, vals, offsets, scales, photoImg, photoScale, photoPos, W, H) {
+function drawBanner(canvas, vals, offsets, scales, photoImg, bgImg, photoScale, photoPos, W, H) {
   if (!canvas) return;
   const r = W / CW;
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, W, H);
 
-  // 1. 写真（最下層）
+  // 1. 背景画像（bg.png）を全面に描画
+  if (bgImg) {
+    ctx.drawImage(bgImg, 0, 0, W, H);
+  } else {
+    // 背景画像がない場合はグラデで代替
+    const g = ctx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, "rgb(235,97,0)");
+    g.addColorStop(1, "rgb(241,141,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // 2. 写真（透明エリア内）
   if (photoImg) drawPhotoInArea(ctx, photoImg, photoScale, photoPos, r);
 
-  // 2. 上部オレンジ帯
-  fillGradH(ctx, L.ORANGE_TOP, r, H);
-
-  // 3. キャッチコピー帯
-  fillGradH(ctx, L.CATCH_BAND, r, H);
-
-  // 4. 白帯
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillRect(L.WHITE_BAND.x*r, L.WHITE_BAND.y*r, L.WHITE_BAND.w*r, L.WHITE_BAND.h*r);
-
-  // 5. 下部オレンジ帯
-  fillGradH(ctx, L.ORANGE_BOT, r, H);
-
-  // 6. 党ロゴ
-  drawPartyLogo(ctx, r);
-
-  // 7. テキスト要素
+  // 3. テキスト要素
   TEXT_ITEMS.forEach(item => {
     const text = (vals[item.key] || "").trim();
     if (!text) return;
@@ -507,7 +512,7 @@ function drawBanner(canvas, vals, offsets, scales, photoImg, photoScale, photoPo
     }
   });
 
-  // 8. 投開票日（赤・中央）
+  // 4. 投開票日（赤・中央）
   const voteText = (vals.voteday || "").trim();
   if (voteText) {
     const { x, y, w, h } = L.VOTE;
@@ -522,7 +527,7 @@ function drawBanner(canvas, vals, offsets, scales, photoImg, photoScale, photoPo
     ctx.fillText(voteText, (x+w/2)*r, (y+h/2)*r);
   }
 
-  // 9. 期日前投票期間（黒・中央・エリアいっぱい）
+  // 5. 期日前投票期間（黒・中央・エリアいっぱい）
   const periodText = (vals.period || "").trim();
   if (periodText) {
     const { x, y, w, h } = L.PERIOD;
@@ -538,18 +543,6 @@ function drawBanner(canvas, vals, offsets, scales, photoImg, photoScale, photoPo
   }
 
   ctx.textAlign = "left";
-}
-
-// ── グラデ帯描画（左→右） ────────────────────────────────
-function fillGradH(ctx, rect, r, H) {
-  const { x, y, w, h } = rect;
-  const g = ctx.createLinearGradient(x*r, 0, (x+w)*r, 0);
-  g.addColorStop(0, "rgb(235,97,0)");
-  g.addColorStop(1, "rgb(241,141,0)");
-  ctx.fillStyle = g;
-  // ORANGE_BOTは下端まで塗る
-  const drawH = (y+h >= CH-1) ? (H - y*r) : h*r;
-  ctx.fillRect(x*r, y*r, w*r, drawH);
 }
 
 // ── 写真エリア描画 ─────────────────────────────────────────
