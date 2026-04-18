@@ -293,7 +293,7 @@ function AppHeader({ screen, onBack }) {
         : <LogoBadge size={32} />
       }
       <div style={{ flex:1, minWidth:0 }}>
-        <p style={{ margin:0, fontSize:10, color:`${C.white}55`, letterSpacing:"0.1em", fontWeight:700 }}>参政党 BANNER CREATOR</p>
+        <p style={{ margin:0, fontSize:10, color:`${C.white}55`, letterSpacing:"0.1em", fontWeight:700 }}>バナークリエイター</p>
         <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.white, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
           {screen==="edit" ? "Instagramリール・ストーリーズ用バナー" : screen==="preview" ? "確認・位置調整" : "完成！"}
         </p>
