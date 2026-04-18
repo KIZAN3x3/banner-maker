@@ -64,7 +64,7 @@ const TEXT_ITEMS = [
   {
     key:"yomi", label:"② よみがな",
     placeholder:"いとうまさよし",
-    required:true, hint:"候補者名の上・白テキスト",
+    required:false, hint:"候補者名の上・白テキスト",
     layout:L.YOMI, fontWeight:"400", fontFamily:"'Noto Serif JP'",
     color:C.white, baseSize:38, alignLeft:false,
   },
@@ -293,7 +293,7 @@ function AppHeader({ screen, onBack }) {
         : <LogoBadge size={32} />
       }
       <div style={{ flex:1, minWidth:0 }}>
-        <p style={{ margin:0, fontSize:10, color:`${C.white}55`, letterSpacing:"0.1em", fontWeight:700 }}>バナークリエイター</p>
+        <p style={{ margin:0, fontSize:10, color:`${C.white}55`, letterSpacing:"0.1em", fontWeight:700 }}>バナーメーカー</p>
         <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.white, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
           {screen==="edit" ? "Instagramリール・ストーリーズ用バナー" : screen==="preview" ? "確認・位置調整" : "完成！"}
         </p>
