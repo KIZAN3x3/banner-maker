@@ -329,6 +329,18 @@ function EditScreen({ values, setValues, photo, setPhoto, setPhotoScale, setPhot
         </div>
       </div>
       <div style={{ padding:"20px 16px 40px" }}>
+
+        {/* ガイド画像 */}
+        <div style={{ marginBottom:20 }}>
+          <img
+            src="/guide.png"
+            alt="入力エリアガイド"
+            style={{ width:"100%", borderRadius:12, boxShadow:`0 4px 20px rgba(0,0,0,0.15)`, display:"block" }}
+          />
+          <p style={{ fontSize:11, color:C.gray, textAlign:"center", marginTop:6 }}>
+            ① 〜 ⑦ のエリアにテキスト・写真が入ります
+          </p>
+        </div>
         <SectionLabel num="01" title="⑦ 候補者写真・ポスター" sub="右下エリアに配置。次の画面でドラッグ・ピンチで調整できます（任意）" />
         <div style={{ marginTop:10 }}>
           {!photo ? (
