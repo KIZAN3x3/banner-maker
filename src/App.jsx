@@ -120,7 +120,7 @@ function MainApp() {
   const [showSample, setShowSample] = useState(true);
 
   const previewRef = useRef(null);
-  const PW = Math.min(typeof window!=="undefined"?window.innerWidth-32:380, 440);
+  const PW = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
   const PH = Math.round(PW*CH/CW);
   const R  = PW/CW;
   const tab = TABS.find(t=>t.id===activeTab);
