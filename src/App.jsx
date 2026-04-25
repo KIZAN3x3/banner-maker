@@ -261,7 +261,6 @@ function MainApp() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         *{box-sizing:border-box}
-        ::-webkit-scrollbar{display:none}
         input::placeholder{color:#C0B8B0}
         textarea::placeholder{color:#C0B8B0}
       `}</style>
@@ -391,7 +390,7 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
       {showSample&&sampleImg&&(
         <div style={{ marginBottom:12, borderRadius:10, overflow:"hidden", border:`1px solid ${C.grayL}` }}>
           <p style={{ margin:0, padding:"6px 12px", fontSize:11, color:C.gray, background:C.white }}>📌 お手本バナー（参考）</p>
-          <img src={sampleImg.src} style={{ width:"100%", display:"block" }} />
+          <img src={sampleImg.src} style={{ width:"50%", display:"block" }} />
         </div>
       )}
 
