@@ -263,6 +263,10 @@ function MainApp() {
         *{box-sizing:border-box}
         input::placeholder{color:#C0B8B0}
         textarea::placeholder{color:#C0B8B0}
+        ::-webkit-scrollbar{width:8px}
+        ::-webkit-scrollbar-track{background:#E8E0D8;border-radius:4px}
+        ::-webkit-scrollbar-thumb{background:#EB6100;border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:#C4520E}
       `}</style>
     </div>
   );
