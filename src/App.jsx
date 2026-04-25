@@ -3,438 +3,482 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // ── Google Fonts ───────────────────────────────────────────
 const fl = document.createElement("link");
 fl.rel = "stylesheet";
-fl.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&display=swap";
+fl.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Shippori+Mincho:wght@400;700;800&family=Zen+Old+Mincho:wght@400;700;900&display=swap";
 document.head.appendChild(fl);
 
-// フォントを事前ロード（明朝体が確実に使えるよう）
 fl.onload = () => {
-  Promise.all([
-    document.fonts.load("700 16px 'Noto Serif JP'"),
-    document.fonts.load("900 16px 'Noto Sans JP'"),
-    document.fonts.load("400 16px 'Noto Sans JP'"),
-    document.fonts.load("400 16px 'Noto Serif JP'"),
-  ]).catch(() => {});
+  ["Noto Sans JP","Noto Serif JP","M PLUS 1p","M PLUS Rounded 1c","Shippori Mincho","Zen Old Mincho"].forEach(f => {
+    document.fonts.load(`700 16px '${f}'`).catch(()=>{});
+  });
 };
 
 // ── カラー ────────────────────────────────────────────────
 const C = {
-  g1:"#EB6100", g2:"#F18D00", red:"#CC0000",
+  g1:"#EB6100", g2:"#F18D00",
   ink:"#18120A", inkS:"#3D2E1E",
   white:"#FFFFFF", cream:"#FAF6F0",
   gray:"#9C8E80", grayL:"#D6CEC4", grayLL:"#EDE7DF",
+  dark:"#0F0A05",
 };
+
+// ── フォント定義 ───────────────────────────────────────────
+const FONTS = [
+  { id:"noto_sans",   name:"ゴシック（標準）",  family:"'Noto Sans JP'",      weight:"700" },
+  { id:"noto_serif",  name:"明朝（標準）",      family:"'Noto Serif JP'",     weight:"700" },
+  { id:"mplus",       name:"ゴシック（丸め）",  family:"'M PLUS 1p'",         weight:"700" },
+  { id:"mplus_round", name:"丸ゴシック",        family:"'M PLUS Rounded 1c'", weight:"700" },
+  { id:"shippori",    name:"明朝（上品）",      family:"'Shippori Mincho'",   weight:"700" },
+  { id:"zen_mincho",  name:"明朝（格調）",      family:"'Zen Old Mincho'",    weight:"700" },
+];
+
+const TEXT_SIZES = { large:120, medium:72, small:40 };
+
+// ── タブ定義 ───────────────────────────────────────────────
+const TABS = [
+  { id:"sns",       label:"SNS枠",        bg:"/bg_sns.png",       sample:"/sample_sns.png"       },
+  { id:"vote",      label:"投票依頼",     bg:"/bg_vote.png",      sample:"/sample_vote.png"      },
+  { id:"schedule",  label:"スケジュール", bg:"/bg_schedule.png",  sample:"/sample_schedule.png"  },
+  { id:"speech",    label:"演説告知",     bg:"/bg_speech.png",    sample:"/sample_speech.png"    },
+  { id:"countdown", label:"カウントダウン",bg:"/bg_countdown.png",sample:"/sample_countdown.png" },
+  { id:"win",       label:"当選",         bg:"/bg_win.png",       sample:"/sample_win.png"       },
+];
 
 const CW = 1080;
 const CH = 1920;
+const PASSWORD = "123";
+const SS_KEY = "banner_maker_v2";
 
-// ── 座標定義（すべて左上基準） ────────────────────────────
-// ※ イラレは中心点基準なので X - W/2, Y - H/2 で左上に変換済み
-const L = {
-  ORANGE_TOP: { x:0,      y:0,       w:1080,   h:345    },
-  CATCH_BAND: { x:0,      y:1387.05, w:1080,   h:109.69 },
-  WHITE_BAND: { x:0,      y:1495.44, w:1080,   h:115.36 },
-  ORANGE_BOT: { x:0,      y:1610.80, w:1080,   h:309.99 },
-  LOGO:       { x:94.60,  y:126.31,  w:193.35, h:189.60 },
-  // テキストエリア（イラレ中心値から左上に変換）
-  // POS:   中心X:663.37 Y:150.62 W:685.31 H:77.04  → 左上X=320.71 Y=112.10
-  POS:        { x:320.71, y:112.10,  w:685.31, h:77.04  },
-  // YOMI:  中心X:663.37 Y:221.18 W:520.05 H:47.82  → 左上X=403.34 Y=197.27
-  YOMI:       { x:403.34, y:197.27,  w:520.05, h:47.82  },
-  // NAME:  中心X:663.37 Y:335.75 W:683.31 H:175.03 → 左上X=321.71 Y=248.22
-  NAME:       { x:321.71, y:248.22,  w:683.31, h:175.03 },
-  // CATCH: 中心X:406.79 Y:1444.51 W:684.12 H:70.07 → 左上X=64.73 Y=1409.47
-  CATCH_TEXT: { x:64.73,  y:1409.47, w:684.12, h:70.07  },
-  // VOTE:  中心X:464.43 Y:1549.50 W:263.83 H:87.59 → 左上X=332.51 Y=1505.70
-  VOTE:       { x:332.51, y:1505.70, w:263.83, h:87.59  },
-  // PERIOD:中心X:822.78 Y:1567.33 W:269.61 H:42.92 → 左上X=687.97 Y=1545.87
-  PERIOD:     { x:687.97, y:1545.87, w:269.61, h:42.92  },
-  // PHOTO: 中心X:908.12 Y:1275.99 W:281.45 H:437.43→ 左上X=766.89 Y=1057.27
-  PHOTO:      { x:766.89, y:1057.27, w:281.45, h:437.43 },
-};
+const uid = () => Math.random().toString(36).slice(2,9);
 
-// ── テキスト要素定義 ──────────────────────────────────────
-const TEXT_ITEMS = [
-  {
-    key:"position", label:"① 肩書き・選挙区",
-    placeholder:"●●●議会議員候補",
-    required:true, hint:"上部オレンジ帯内・黒テキスト",
-    layout:L.POS, fontWeight:"700", fontFamily:"'Noto Sans JP'",
-    color:C.ink, baseSize:52, alignLeft:false,
-  },
-  {
-    key:"yomi", label:"② よみがな",
-    placeholder:"いとうまさよし",
-    required:false, hint:"候補者名の上・白テキスト",
-    layout:L.YOMI, fontWeight:"400", fontFamily:"'Noto Serif JP'",
-    color:C.white, baseSize:38, alignLeft:false,
-  },
-  {
-    key:"name", label:"③ 候補者名",
-    placeholder:"伊藤正義",
-    required:true, hint:"白テキストで大きく",
-    layout:L.NAME, fontWeight:"900", fontFamily:"'Noto Sans JP'",
-    color:C.white, baseSize:160, alignLeft:false, shadow:true,
-  },
-  {
-    key:"catch", label:"④ キャッチコピー",
-    placeholder:"僕らは日本をあきらめない！",
-    required:true, hint:"オレンジ帯内・白テキスト・左揃え",
-    layout:L.CATCH_TEXT, fontWeight:"700", fontFamily:"'Noto Serif JP'",
-    color:C.white, baseSize:56, alignLeft:true,
-  },
-];
+const defaultText = (zIndex=0) => ({
+  id:uid(), type:"text",
+  text:"テキストを入力",
+  font:FONTS[0].id,
+  size:"medium",
+  color:"#FFFFFF",
+  vertical:false,
+  shadow:false,
+  outline:false, outlineColor:"#000000", outlineWidth:4,
+  glow:false, glowColor:"#FF6600",
+  x:CW/2, y:CH/2,
+  scale:1,
+  zIndex,
+});
 
-const VOTE_FIELDS = [
-  { key:"voteday", label:"⑤ 投開票日",      placeholder:"4月11日",                  required:true, hint:"赤字で表示" },
-  { key:"period",  label:"⑥ 期日前投票期間", placeholder:"4 / 5 ㊊ ～ 4 / 10 ㊏", required:true, hint:"エリアいっぱいに表示" },
-];
-
-const SS_KEY = "sanseito_banner_v12";
+const defaultImage = (src, w, h, zIndex=0) => ({
+  id:uid(), type:"image",
+  src, naturalW:w, naturalH:h,
+  x:CW/2, y:CH/2,
+  scale:1,
+  zIndex,
+});
 
 // ──────────────────────────────────────────────────────────
 export default function App() {
-  const getSaved = () => {
-    try { const s = sessionStorage.getItem(SS_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("bm_auth")==="1");
+  if (!authed) return <PasswordScreen onAuth={()=>{ sessionStorage.setItem("bm_auth","1"); setAuthed(true); }} />;
+  return <MainApp />;
+}
+
+// ── PasswordScreen ────────────────────────────────────────
+function PasswordScreen({ onAuth }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+  const submit = () => {
+    if (pw===PASSWORD) { onAuth(); }
+    else { setErr(true); setTimeout(()=>setErr(false),1200); }
   };
-  const saved = getSaved();
-
-  const [screen,     setScreen]     = useState(saved?.screen     || "edit");
-  const [values,     setValues]     = useState(saved?.values     || {});
-  const [offsets,    setOffsets]    = useState(saved?.offsets    || {});
-  const [scales,     setScales]     = useState(saved?.scales     || {});
-  const [photo,      setPhoto]      = useState(saved?.photo      || null);
-  const [photoImg,   setPhotoImg]   = useState(null);
-  const [bgImg,      setBgImg]      = useState(null);  // 背景画像
-  const [photoScale, setPhotoScale] = useState(saved?.photoScale || 1);
-  const [photoPos,   setPhotoPos]   = useState(saved?.photoPos   || {x:0,y:0});
-  const [generating, setGenerating] = useState(false);
-  const [downloadUrl,setDownloadUrl]= useState(null);
-  const [fontsReady, setFontsReady] = useState(false);
-  const [dragging,   setDragging]   = useState(null);
-
-  const previewRef = useRef(null);
-  const PW = Math.min(typeof window !== "undefined" ? window.innerWidth - 32 : 380, 420);
-  const PH = Math.round(PW * CH / CW);
-  const SCALE = PW / CW;
-
-  useEffect(() => {
-    try { sessionStorage.setItem(SS_KEY, JSON.stringify({screen,values,offsets,scales,photo,photoScale,photoPos})); } catch {}
-  }, [screen,values,offsets,scales,photo,photoScale,photoPos]);
-
-  useEffect(() => {
-    document.fonts.ready.then(() =>
-      Promise.all([
-        document.fonts.load("700 48px 'Noto Serif JP'"),
-        document.fonts.load("900 48px 'Noto Sans JP'"),
-        document.fonts.load("400 48px 'Noto Serif JP'"),
-      ]).then(() => setFontsReady(true)).catch(() => setFontsReady(true))
-    );
-  }, []);
-
-  // 背景画像を読み込む
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => setBgImg(img);
-    img.onerror = () => console.warn("背景画像の読み込み失敗");
-    img.src = "/bg.png";
-  }, []);
-
-  useEffect(() => {
-    if (!photo) { setPhotoImg(null); return; }
-    const img = new Image();
-    img.onload = () => setPhotoImg(img);
-    img.src = photo;
-  }, [photo]);
-
-  useEffect(() => {
-    if (screen !== "preview" || !previewRef.current) return;
-    previewRef.current.width  = PW;
-    previewRef.current.height = PH;
-    drawBanner(previewRef.current, values, offsets, scales, photoImg, bgImg, photoScale, photoPos, PW, PH);
-  }, [screen, values, offsets, scales, photoImg, bgImg, photoScale, photoPos, fontsReady, PW, PH]);
-
-  const handleGenerate = async () => {
-    setGenerating(true);
-    await new Promise(r => setTimeout(r, 80));
-    const canvas = document.createElement("canvas");
-    canvas.width = CW; canvas.height = CH;
-    drawBanner(canvas, values, offsets, scales, photoImg, bgImg, photoScale, photoPos, CW, CH);
-    setDownloadUrl(canvas.toDataURL("image/png"));
-    setGenerating(false);
-    setScreen("done");
-  };
-
-  const reset = () => {
-    sessionStorage.removeItem(SS_KEY);
-    setScreen("edit"); setValues({}); setOffsets({}); setScales({});
-    setPhoto(null); setPhotoScale(1); setPhotoPos({x:0,y:0}); setDownloadUrl(null);
-  };
-
-  const requiredKeys = [...TEXT_ITEMS, ...VOTE_FIELDS].filter(f=>f.required).map(f=>f.key);
-  const canNext = requiredKeys.every(k => (values[k]||"").trim() !== "");
-
-  // ── ドラッグ＆ピンチ管理 ─────────────────────────────────
-  const pinchRef = useRef({ lastDist:null, key:null });
-
-  const getCanvasPos = useCallback((clientX, clientY) => {
-    if (!previewRef.current) return {x:0,y:0};
-    const rect = previewRef.current.getBoundingClientRect();
-    return { x:(clientX - rect.left)/SCALE, y:(clientY - rect.top)/SCALE };
-  }, [SCALE]);
-
-  // ヒットテスト（テキスト or 写真）
-  const hitTest = useCallback((mx, my) => {
-    for (const item of TEXT_ITEMS) {
-      if (!(values[item.key]||"").trim()) continue;
-      const ox = offsets[item.key]?.x || 0;
-      const oy = offsets[item.key]?.y || 0;
-      const sc = scales[item.key] || 1;
-      const lx = item.layout.x + ox;
-      const ly = item.layout.y + oy;
-      const lw = item.layout.w * sc;
-      const lh = item.layout.h * sc;
-      if (mx>=lx && mx<=lx+lw && my>=ly && my<=ly+lh) return { key:item.key, type:"text" };
-    }
-    const px = L.PHOTO.x, py = L.PHOTO.y;
-    if (mx>=px && mx<=px+L.PHOTO.w && my>=py && my<=py+L.PHOTO.h) return { key:"__photo__", type:"photo" };
-    return null;
-  }, [values, offsets, scales]);
-
-  const handleMouseDown = useCallback((e) => {
-    const {x:mx, y:my} = getCanvasPos(e.clientX, e.clientY);
-    const hit = hitTest(mx, my);
-    if (!hit) return;
-    const ox = offsets[hit.key]?.x || 0;
-    const oy = offsets[hit.key]?.y || 0;
-    const origX = hit.type === "photo" ? photoPos.x : ox;
-    const origY = hit.type === "photo" ? photoPos.y : oy;
-    setDragging({ key:hit.key, type:hit.type, startX:mx, startY:my, origX, origY });
-  }, [getCanvasPos, hitTest, offsets, photoPos]);
-
-  const handleMouseMove = useCallback((e) => {
-    if (!dragging) return;
-    const {x:mx, y:my} = getCanvasPos(e.clientX, e.clientY);
-    const dx = mx - dragging.startX, dy = my - dragging.startY;
-    if (dragging.type === "photo") {
-      setPhotoPos({ x:dragging.origX + dx*(CW/PW), y:dragging.origY + dy*(CW/PW) });
-    } else {
-      setOffsets(prev => ({ ...prev, [dragging.key]:{x:dragging.origX+dx, y:dragging.origY+dy} }));
-    }
-  }, [dragging, getCanvasPos, PW]);
-
-  const handleMouseUp = useCallback(() => setDragging(null), []);
-
-  // タッチ：1本=ドラッグ、2本=ピンチ
-  const handleTouchStart = useCallback((e) => {
-    if (e.touches.length === 2) {
-      // ピンチ開始：どの要素かを記録
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchRef.current.lastDist = Math.sqrt(dx*dx+dy*dy);
-      // 中心点でヒットテスト
-      const cx = (e.touches[0].clientX + e.touches[1].clientX)/2;
-      const cy = (e.touches[0].clientY + e.touches[1].clientY)/2;
-      const {x:mx, y:my} = getCanvasPos(cx, cy);
-      const hit = hitTest(mx, my);
-      pinchRef.current.key = hit ? hit.key : null;
-      pinchRef.current.type = hit ? hit.type : null;
-    } else if (e.touches.length === 1) {
-      handleMouseDown({ clientX:e.touches[0].clientX, clientY:e.touches[0].clientY });
-    }
-  }, [handleMouseDown, getCanvasPos, hitTest]);
-
-  const handleTouchMove = useCallback((e) => {
-    e.preventDefault();
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx*dx+dy*dy);
-      if (pinchRef.current.lastDist && dist > 0) {
-        const ratio = dist / pinchRef.current.lastDist;
-        const k = pinchRef.current.key;
-        const t = pinchRef.current.type;
-        if (t === "photo") {
-          setPhotoScale(s => Math.min(Math.max(s*ratio, 0.2), 6));
-        } else if (k) {
-          setScales(prev => ({ ...prev, [k]: Math.min(Math.max((prev[k]||1)*ratio, 0.3), 4) }));
-        }
-      }
-      pinchRef.current.lastDist = dist;
-    } else if (e.touches.length === 1) {
-      handleMouseMove({ clientX:e.touches[0].clientX, clientY:e.touches[0].clientY });
-    }
-  }, [handleMouseMove, setPhotoScale]);
-
-  const handleTouchEnd = useCallback(() => {
-    pinchRef.current.lastDist = null;
-    handleMouseUp();
-  }, [handleMouseUp]);
-
   return (
-    <div style={{ minHeight:"100vh", background:C.cream, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, paddingBottom:60 }}>
-      <AppHeader screen={screen} onBack={
-        screen==="preview" ? ()=>setScreen("edit") :
-        screen==="done"    ? ()=>setScreen("preview") : null
-      }/>
-      {screen==="edit"    && <EditScreen values={values} setValues={setValues} photo={photo} setPhoto={setPhoto} setPhotoScale={setPhotoScale} setPhotoPos={setPhotoPos} canNext={canNext} onNext={()=>setScreen("preview")} />}
-      {screen==="preview" && <PreviewScreen values={values} offsets={offsets} scales={scales} photoImg={photoImg} photoScale={photoScale} photoPos={photoPos} canvasRef={previewRef} PW={PW} PH={PH} generating={generating} isDragging={!!dragging} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onGenerate={handleGenerate} onEdit={()=>setScreen("edit")} />}
-      {screen==="done"    && <DoneScreen downloadUrl={downloadUrl} onReset={reset} />}
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}} input::placeholder{color:#C0B8B0} *{box-sizing:border-box} ::-webkit-scrollbar{display:none}`}</style>
+    <div style={{ minHeight:"100vh", background:C.dark, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans JP',sans-serif" }}>
+      <div style={{ background:C.ink, borderRadius:20, padding:"40px 32px", width:300, boxShadow:"0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ width:56, height:56, borderRadius:14, background:`linear-gradient(135deg,${C.g1},${C.g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, fontWeight:900, color:C.white, margin:"0 auto 14px" }}>BM</div>
+          <p style={{ margin:0, fontSize:20, fontWeight:700, color:C.white }}>バナーメーカー</p>
+          <p style={{ margin:"6px 0 0", fontSize:12, color:C.gray }}>パスワードを入力してください</p>
+        </div>
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="パスワード"
+          style={{ width:"100%", padding:"13px 16px", background:err?"#3D0A0A":"#2A1E12", border:`1.5px solid ${err?"#CC3333":C.grayL}`, borderRadius:10, color:C.white, fontSize:16, fontFamily:"'Noto Sans JP',sans-serif", outline:"none", boxSizing:"border-box" }}
+        />
+        {err && <p style={{ color:"#CC3333", fontSize:12, margin:"6px 0 0", textAlign:"center" }}>パスワードが違います</p>}
+        <button onClick={submit} style={{ width:"100%", marginTop:14, padding:"14px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:12, color:C.white, fontSize:15, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>ログイン</button>
+      </div>
+      <style>{`input::placeholder{color:#5A4A38} *{box-sizing:border-box}`}</style>
     </div>
   );
 }
 
-// ── AppHeader ──────────────────────────────────────────────
-function AppHeader({ screen, onBack }) {
+// ── MainApp ───────────────────────────────────────────────
+function MainApp() {
+  const [activeTab,  setActiveTab]  = useState("vote");
+  const [screen,     setScreen]     = useState("home");
+  const [elements,   setElements]   = useState([]);
+  const [selected,   setSelected]   = useState(null);
+  const [history,    setHistory]    = useState([]);
+  const [saves,      setSaves]      = useState(()=>{ try{return JSON.parse(localStorage.getItem(SS_KEY)||"{}");}catch{return {};} });
+  const [bgImg,      setBgImg]      = useState(null);
+  const [sampleImg,  setSampleImg]  = useState(null);
+  const [downloadUrl,setDownloadUrl]= useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [fontsReady, setFontsReady] = useState(false);
+  const [showSample, setShowSample] = useState(true);
+
+  const previewRef = useRef(null);
+  const PW = Math.min(typeof window!=="undefined"?window.innerWidth-32:380, 440);
+  const PH = Math.round(PW*CH/CW);
+  const R  = PW/CW;
+  const tab = TABS.find(t=>t.id===activeTab);
+
+  useEffect(()=>{
+    document.fonts.ready.then(()=>
+      Promise.all(FONTS.map(f=>document.fonts.load(`${f.weight} 48px ${f.family}`)))
+        .then(()=>setFontsReady(true)).catch(()=>setFontsReady(true))
+    );
+  },[]);
+
+  useEffect(()=>{
+    setBgImg(null); setSampleImg(null);
+    const bg=new Image(); bg.onload=()=>setBgImg(bg); bg.src=tab.bg;
+    const sm=new Image(); sm.onload=()=>setSampleImg(sm); sm.src=tab.sample;
+  },[activeTab]);
+
+  useEffect(()=>{
+    if(screen!=="preview"||!previewRef.current)return;
+    previewRef.current.width=PW; previewRef.current.height=PH;
+    drawCanvas(previewRef.current,elements,bgImg,PW,PH,selected);
+  },[screen,elements,bgImg,fontsReady,PW,PH,selected]);
+
+  const pushHistory = useCallback((els)=>{
+    setHistory(h=>[...h.slice(-19),JSON.parse(JSON.stringify(els))]);
+  },[]);
+
+  const undo = ()=>{
+    if(history.length===0)return;
+    setElements(history[history.length-1]);
+    setHistory(h=>h.slice(0,-1));
+  };
+
+  const addText = ()=>{
+    pushHistory(elements);
+    const el=defaultText(elements.length);
+    setElements(e=>[...e,el]);
+    setSelected(el.id);
+  };
+
+  const addImage = (file)=>{
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        pushHistory(elements);
+        const el=defaultImage(ev.target.result,img.width,img.height,elements.length);
+        setElements(e=>[...e,el]);
+        setSelected(el.id);
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const updateEl = (id,patch)=>setElements(e=>e.map(el=>el.id===id?{...el,...patch}:el));
+  const deleteEl = (id)=>{ pushHistory(elements); setElements(e=>e.filter(el=>el.id!==id)); setSelected(null); };
+
+  const moveLayer = (id,dir)=>{
+    pushHistory(elements);
+    setElements(e=>{
+      const arr=[...e].sort((a,b)=>a.zIndex-b.zIndex);
+      const idx=arr.findIndex(el=>el.id===id);
+      if(dir==="up"&&idx<arr.length-1)[arr[idx].zIndex,arr[idx+1].zIndex]=[arr[idx+1].zIndex,arr[idx].zIndex];
+      else if(dir==="down"&&idx>0)[arr[idx].zIndex,arr[idx-1].zIndex]=[arr[idx-1].zIndex,arr[idx].zIndex];
+      return arr;
+    });
+  };
+
+  const saveWork = ()=>{
+    const key=`${activeTab}_${Date.now()}`;
+    const work={ id:key, tab:activeTab, name:`${tab.label} ${new Date().toLocaleDateString("ja-JP")}`, elements:JSON.parse(JSON.stringify(elements)), createdAt:Date.now() };
+    const updated={...saves,[key]:work};
+    setSaves(updated); localStorage.setItem(SS_KEY,JSON.stringify(updated));
+    alert("保存しました！");
+  };
+
+  const loadWork = (work)=>{ setElements(work.elements); setSelected(null); setHistory([]); setScreen("preview"); };
+  const deleteWork = (id)=>{ const u={...saves}; delete u[id]; setSaves(u); localStorage.setItem(SS_KEY,JSON.stringify(u)); };
+
+  const generate = async()=>{
+    setGenerating(true);
+    await new Promise(r=>setTimeout(r,80));
+    const canvas=document.createElement("canvas");
+    canvas.width=CW; canvas.height=CH;
+    drawCanvas(canvas,elements,bgImg,CW,CH,null);
+    setDownloadUrl(canvas.toDataURL("image/png"));
+    setGenerating(false); setScreen("done");
+  };
+
+  const reset = ()=>{ setElements([]); setSelected(null); setHistory([]); setDownloadUrl(null); setScreen("home"); };
+  const tabSaves = Object.values(saves).filter(s=>s.tab===activeTab).sort((a,b)=>b.createdAt-a.createdAt);
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.cream, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, paddingBottom:60 }}>
+      <AppHeader screen={screen} onBack={screen==="preview"?()=>setScreen("home"):screen==="done"?()=>setScreen("preview"):null} onSave={screen==="preview"?saveWork:null} onUndo={screen==="preview"&&history.length>0?undo:null} />
+
+      {screen==="home"&&(
+        <div style={{ background:C.white, borderBottom:`1px solid ${C.grayLL}`, display:"flex", overflowX:"auto", position:"sticky", top:56, zIndex:100, WebkitOverflowScrolling:"touch" }}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ flexShrink:0, padding:"11px 14px", background:"none", border:"none", borderBottom:`3px solid ${activeTab===t.id?C.g1:"transparent"}`, color:activeTab===t.id?C.g1:C.gray, fontSize:12, fontWeight:activeTab===t.id?700:400, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>{t.label}</button>
+          ))}
+        </div>
+      )}
+
+      {screen==="home"&&<HomeScreen tab={tab} tabSaves={tabSaves} onNew={()=>{setElements([]);setSelected(null);setHistory([]);setScreen("preview");}} onLoad={loadWork} onDelete={deleteWork} />}
+      {screen==="preview"&&<PreviewScreen elements={elements} setElements={setElements} selected={selected} setSelected={setSelected} bgImg={bgImg} sampleImg={sampleImg} showSample={showSample} setShowSample={setShowSample} canvasRef={previewRef} PW={PW} PH={PH} R={R} addText={addText} addImage={addImage} updateEl={updateEl} deleteEl={deleteEl} moveLayer={moveLayer} pushHistory={pushHistory} onGenerate={generate} generating={generating} />}
+      {screen==="done"&&<DoneScreen downloadUrl={downloadUrl} onReset={reset} onBack={()=>setScreen("preview")} />}
+
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}} *{box-sizing:border-box} ::-webkit-scrollbar{display:none} input::placeholder{color:#C0B8B0}`}</style>
+    </div>
+  );
+}
+
+function AppHeader({ screen, onBack, onSave, onUndo }) {
   return (
     <header style={{ background:C.ink, height:56, display:"flex", alignItems:"center", padding:"0 16px", gap:10, position:"sticky", top:0, zIndex:300, boxShadow:"0 2px 20px #00000055" }}>
       {onBack
-        ? <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:C.white, fontSize:26, lineHeight:1, padding:"0 10px 0 0", marginLeft:-4 }}>‹</button>
-        : <LogoBadge size={32} />
+        ? <button onClick={onBack} style={{ background:"none", border:"none", cursor:"pointer", color:C.white, fontSize:26, lineHeight:1, padding:"0 8px 0 0", marginLeft:-4 }}>‹</button>
+        : <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${C.g1},${C.g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:C.white }}>BM</div>
       }
-      <div style={{ flex:1, minWidth:0 }}>
-        <p style={{ margin:0, fontSize:10, color:`${C.white}55`, letterSpacing:"0.1em", fontWeight:700 }}>バナーメーカー</p>
-        <p style={{ margin:0, fontSize:12, fontWeight:700, color:C.white, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-          {screen==="edit" ? "Instagramリール・ストーリーズ用バナー" : screen==="preview" ? "確認・位置調整" : "完成！"}
-        </p>
-      </div>
-      <div style={{ display:"flex", gap:5 }}>
-        {["edit","preview","done"].map(s=>(
-          <div key={s} style={{ width:s===screen?18:5, height:5, borderRadius:3, background:s===screen?C.g1:`${C.white}25`, transition:"all 0.3s" }} />
-        ))}
+      <p style={{ margin:0, fontSize:14, fontWeight:700, color:C.white, flex:1 }}>バナーメーカー</p>
+      <div style={{ display:"flex", gap:8 }}>
+        {onUndo&&<button onClick={onUndo} style={{ background:`${C.white}15`, border:"none", borderRadius:8, padding:"6px 12px", color:C.white, fontSize:12, cursor:"pointer" }}>↩ 戻す</button>}
+        {onSave&&<button onClick={onSave} style={{ background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:8, padding:"6px 14px", color:C.white, fontSize:12, fontWeight:700, cursor:"pointer" }}>保存</button>}
       </div>
     </header>
   );
 }
 
-function LogoBadge({ size=30 }) {
-  return <div style={{ width:size, height:size, borderRadius:Math.round(size*0.23), background:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.38, fontWeight:900, color:C.white, flexShrink:0 }}>参</div>;
-}
-
-// ── EditScreen ─────────────────────────────────────────────
-function EditScreen({ values, setValues, photo, setPhoto, setPhotoScale, setPhotoPos, canNext, onNext }) {
-  const readFile = (file) => {
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = ev => { setPhoto(ev.target.result); setPhotoScale(1); setPhotoPos({x:0,y:0}); };
-    r.readAsDataURL(file);
-  };
+function HomeScreen({ tab, tabSaves, onNew, onLoad, onDelete }) {
   return (
-    <div style={{ maxWidth:520, margin:"0 auto" }}>
-      <div style={{ background:`${C.g1}12`, borderBottom:`1px solid ${C.g1}22`, padding:"12px 16px", display:"flex", alignItems:"center", gap:10 }}>
-        <LogoBadge size={26} />
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"20px 16px 40px" }}>
+      <button onClick={onNew} style={{ width:"100%", padding:"18px", background:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, border:"none", borderRadius:14, color:C.white, fontSize:16, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer", boxShadow:`0 4px 20px ${C.g1}45`, marginBottom:24 }}>＋ 新規作成</button>
+      {tabSaves.length>0&&(
         <div>
-          <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.inkS }}>Instagramリール・ストーリーズ</p>
-          <p style={{ margin:0, fontSize:11, color:C.gray }}>1080×1920px　背景透過PNG</p>
-        </div>
-      </div>
-      <div style={{ padding:"20px 16px 40px" }}>
-
-        {/* ガイド画像 */}
-        <div style={{ marginBottom:20 }}>
-          <img
-            src="/guide.png"
-            alt="入力エリアガイド"
-            style={{ width:"100%", borderRadius:12, boxShadow:`0 4px 20px rgba(0,0,0,0.15)`, display:"block" }}
-          />
-          <p style={{ fontSize:11, color:C.gray, textAlign:"center", marginTop:6 }}>
-            ① 〜 ⑦ のエリアにテキスト・写真が入ります
-          </p>
-        </div>
-        <SectionLabel num="01" title="⑦ 候補者写真・ポスター" sub="右下エリアに配置。次の画面でドラッグ・ピンチで調整できます（任意）" />
-        <div style={{ marginTop:10 }}>
-          {!photo ? (
-            <label style={{ display:"flex", alignItems:"center", gap:14, background:C.white, border:`2px dashed ${C.g1}55`, borderRadius:14, padding:"20px", cursor:"pointer" }}>
-              <div style={{ width:52, height:52, borderRadius:"50%", background:`${C.g1}15`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, flexShrink:0 }}>📷</div>
-              <div>
-                <p style={{ margin:0, fontSize:15, fontWeight:700, color:C.g1 }}>写真をタップして選択</p>
-                <p style={{ margin:0, fontSize:11, color:C.gray, marginTop:4, lineHeight:1.6 }}>切り抜き済みJPG・PNG推奨</p>
+          <p style={{ fontSize:13, fontWeight:700, color:C.inkS, marginBottom:12 }}>保存済み</p>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {tabSaves.map(work=>(
+              <div key={work.id} style={{ background:C.white, borderRadius:12, padding:"14px 16px", border:`1px solid ${C.grayLL}`, display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ flex:1 }}>
+                  <p style={{ margin:0, fontSize:14, fontWeight:700 }}>{work.name}</p>
+                  <p style={{ margin:"3px 0 0", fontSize:11, color:C.gray }}>{work.elements.length}個の要素</p>
+                </div>
+                <button onClick={()=>onLoad(work)} style={{ padding:"8px 16px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:8, color:C.white, fontSize:12, fontWeight:700, cursor:"pointer" }}>編集</button>
+                <button onClick={()=>{if(confirm("削除しますか？"))onDelete(work.id);}} style={{ padding:"8px 12px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:8, color:C.gray, fontSize:12, cursor:"pointer" }}>削除</button>
               </div>
-              <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>readFile(e.target.files[0])} />
-            </label>
-          ) : (
-            <div style={{ display:"flex", alignItems:"center", gap:12, background:C.white, borderRadius:14, padding:"12px 16px", border:`1.5px solid ${C.g1}` }}>
-              <img src={photo} style={{ width:64, height:64, borderRadius:10, objectFit:"cover", flexShrink:0 }} />
-              <div style={{ flex:1 }}>
-                <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.inkS }}>✓ 写真設定済み</p>
-                <p style={{ margin:0, fontSize:11, color:C.gray, marginTop:3 }}>次の画面でドラッグ・ピンチで調整できます</p>
-              </div>
-              <label style={{ fontSize:12, color:C.g1, cursor:"pointer", textDecoration:"underline", fontWeight:700, flexShrink:0 }}>
-                変える<input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>readFile(e.target.files[0])} />
-              </label>
-            </div>
-          )}
-        </div>
-        <div style={{ marginTop:24 }}>
-          <SectionLabel num="02" title="テキスト入力" sub="●必須　○任意 ／ 次の画面でドラッグ・ピンチで位置・サイズ調整できます" />
-          <div style={{ marginTop:12, display:"flex", flexDirection:"column", gap:10 }}>
-            {[...TEXT_ITEMS, ...VOTE_FIELDS].map(field => (
-              <FieldInput key={field.key} field={field} value={values[field.key]||""} onChange={v=>setValues(prev=>({...prev,[field.key]:v}))} />
             ))}
           </div>
         </div>
-        <div style={{ marginTop:24 }}>
-          {!canNext && (
-            <div style={{ background:`${C.g1}10`, border:`1px solid ${C.g1}25`, borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
-              {[...TEXT_ITEMS, ...VOTE_FIELDS].filter(f=>f.required && !(values[f.key]||"").trim()).map(f=>(
-                <p key={f.key} style={{ margin:"2px 0", fontSize:12, color:C.g1, fontWeight:700 }}>● 「{f.label}」を入力してください</p>
-              ))}
-            </div>
-          )}
-          <PrimaryBtn disabled={!canNext} onClick={onNext}>プレビューを確認する →</PrimaryBtn>
+      )}
+    </div>
+  );
+}
+
+function PreviewScreen({ elements, setElements, selected, setSelected, bgImg, sampleImg, showSample, setShowSample, canvasRef, PW, PH, R, addText, addImage, updateEl, deleteEl, moveLayer, pushHistory, onGenerate, generating }) {
+  const dragging = useRef(null);
+  const pinchRef = useRef({ lastDist:null, key:null });
+  const imgInputRef = useRef();
+
+  const hitTest = useCallback((mx,my)=>{
+    const sorted=[...elements].sort((a,b)=>b.zIndex-a.zIndex);
+    for(const el of sorted){
+      const hw=getElHalfW(el)*el.scale*R, hh=getElHalfH(el)*el.scale*R;
+      if(mx>=el.x*R-hw&&mx<=el.x*R+hw&&my>=el.y*R-hh&&my<=el.y*R+hh)return el;
+    }
+    return null;
+  },[elements,R]);
+
+  const getXY = (cx,cy)=>{
+    if(!canvasRef.current)return{x:0,y:0};
+    const rect=canvasRef.current.getBoundingClientRect();
+    return{x:(cx-rect.left)/R,y:(cy-rect.top)/R};
+  };
+
+  const onMouseDown = (e)=>{
+    const{x,y}=getXY(e.clientX,e.clientY);
+    // 選択中の要素があればそれを優先してドラッグ開始
+    if(selected){
+      const el=elements.find(el=>el.id===selected);
+      if(el){
+        pushHistory(elements);
+        dragging.current={id:el.id,startX:x,startY:y,origX:el.x,origY:el.y};
+        return;
+      }
+    }
+    // 選択中がなければヒットテスト
+    const hit=hitTest(x,y);
+    if(hit){ setSelected(hit.id); pushHistory(elements); dragging.current={id:hit.id,startX:x,startY:y,origX:hit.x,origY:hit.y}; }
+  };
+  const onMouseMove = (e)=>{
+    if(!dragging.current)return;
+    const{x,y}=getXY(e.clientX,e.clientY);
+    updateEl(dragging.current.id,{x:dragging.current.origX+(x-dragging.current.startX),y:dragging.current.origY+(y-dragging.current.startY)});
+  };
+  const onMouseUp = ()=>{ dragging.current=null; };
+
+  const onTouchStart = (e)=>{
+    if(e.touches.length===2){
+      const dx=e.touches[0].clientX-e.touches[1].clientX, dy=e.touches[0].clientY-e.touches[1].clientY;
+      pinchRef.current.lastDist=Math.sqrt(dx*dx+dy*dy);
+      // ピンチは選択中要素を優先
+      pinchRef.current.key=selected||null;
+    } else { onMouseDown({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}); }
+  };
+  const onTouchMove = (e)=>{
+    e.preventDefault();
+    if(e.touches.length===2){
+      const dx=e.touches[0].clientX-e.touches[1].clientX, dy=e.touches[0].clientY-e.touches[1].clientY;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(pinchRef.current.lastDist&&pinchRef.current.key){
+        const ratio=dist/pinchRef.current.lastDist, k=pinchRef.current.key;
+        setElements(els=>els.map(el=>el.id===k?{...el,scale:Math.min(Math.max(el.scale*ratio,0.1),8)}:el));
+      }
+      pinchRef.current.lastDist=dist;
+    } else { onMouseMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}); }
+  };
+  const onTouchEnd = ()=>{ pinchRef.current.lastDist=null; onMouseUp(); };
+
+  const selectedEl = elements.find(el=>el.id===selected);
+  const sortedEls  = [...elements].sort((a,b)=>b.zIndex-a.zIndex);
+
+  return (
+    <div style={{ maxWidth:520, margin:"0 auto", padding:"12px 16px 40px" }}>
+      {/* ツールバー */}
+      <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+        <button onClick={addText} style={toolBtn(C.g1)}>＋ テキスト</button>
+        <label style={toolBtn("#4A90D9")}>
+          ＋ 画像
+          <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
+        </label>
+        <button onClick={()=>setShowSample(v=>!v)} style={toolBtn(showSample?"#555":"#888")}>{showSample?"お手本を隠す":"お手本を表示"}</button>
+      </div>
+
+      {/* お手本 */}
+      {showSample&&sampleImg&&(
+        <div style={{ marginBottom:12, borderRadius:10, overflow:"hidden", border:`1px solid ${C.grayL}` }}>
+          <p style={{ margin:0, padding:"6px 12px", fontSize:11, color:C.gray, background:C.white }}>📌 お手本バナー（参考）</p>
+          <img src={sampleImg.src} style={{ width:"100%", display:"block" }} />
         </div>
-      </div>
-    </div>
-  );
-}
+      )}
 
-// ── FieldInput ─────────────────────────────────────────────
-function FieldInput({ field, value, onChange }) {
-  const [focused, setFocused] = useState(false);
-  const filled = value.trim().length > 0;
-  return (
-    <div style={{ background:C.white, border:`1.5px solid ${focused?C.g1:filled?`${C.g1}50`:C.grayL}`, borderRadius:12, padding:"11px 14px", transition:"border-color 0.2s" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
-        <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:20, background:field.required?`linear-gradient(135deg,${C.g1},${C.g2})`:C.grayLL, color:field.required?C.white:C.gray }}>{field.required?"●必須":"○任意"}</span>
-        <span style={{ fontSize:12, fontWeight:700, color:C.inkS }}>{field.label}</span>
-        {filled && <span style={{ marginLeft:"auto", fontSize:13, color:C.g1 }}>✓</span>}
-      </div>
-      <input value={value} onChange={e=>onChange(e.target.value)} onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)} placeholder={field.placeholder}
-        style={{ width:"100%", background:"transparent", border:"none", outline:"none", fontSize:16, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, padding:0 }} />
-      {focused && field.hint && <p style={{ margin:"5px 0 0", fontSize:10, color:C.g1, lineHeight:1.5 }}>💡 {field.hint}</p>}
-    </div>
-  );
-}
-
-// ── PreviewScreen ──────────────────────────────────────────
-function PreviewScreen({ values, offsets, scales, photoImg, photoScale, photoPos, canvasRef, PW, PH, generating, isDragging, onMouseDown, onMouseMove, onMouseUp, onTouchStart, onTouchMove, onTouchEnd, onGenerate, onEdit }) {
-  return (
-    <div style={{ maxWidth:520, margin:"0 auto", padding:"16px 16px 40px" }}>
-      <p style={{ margin:"0 0 4px", fontSize:14, fontWeight:700 }}>プレビュー・調整</p>
-      <p style={{ margin:"0 0 12px", fontSize:11, color:C.gray, lineHeight:1.6 }}>
-        📌 テキスト・写真をドラッグで移動<br/>
-        🤏 テキスト・写真をピンチで拡大縮小（縦横比固定）
-      </p>
-      <div style={{ display:"flex", justifyContent:"center", borderRadius:10, overflow:"hidden", boxShadow:`0 8px 40px ${C.g1}25`, border:`2px solid ${C.g1}` }}>
+      {/* Canvas */}
+      <div style={{ borderRadius:10, overflow:"hidden", border:`2px solid ${C.g1}`, boxShadow:`0 8px 32px ${C.g1}20` }}>
         <canvas ref={canvasRef} width={PW} height={PH}
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-          style={{ display:"block", cursor:isDragging?"grabbing":"grab", touchAction:"none", userSelect:"none" }}
+          style={{ display:"block", cursor:"grab", touchAction:"none", userSelect:"none" }}
         />
       </div>
-      <p style={{ textAlign:"center", fontSize:10, color:C.gray, marginTop:6 }}>出力：1080×1920px PNG</p>
-      <div style={{ display:"flex", gap:10, marginTop:14 }}>
-        <button onClick={onEdit} style={{ padding:"14px 18px", background:"transparent", border:`1.5px solid ${C.grayL}`, borderRadius:12, color:C.inkS, fontSize:13, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer", flexShrink:0 }}>← 修正する</button>
-        <PrimaryBtn onClick={onGenerate} disabled={generating} flex>
-          {generating ? <><Spinner size={18} color={C.white}/>生成中...</> : "✦ バナーを生成する"}
-        </PrimaryBtn>
+      <p style={{ textAlign:"center", fontSize:10, color:C.gray, marginTop:5 }}>レイヤーで要素を選択→Canvasでドラッグ移動　ピンチで拡縮</p>
+
+      {/* 編集パネル */}
+      {selectedEl&&<EditPanel el={selectedEl} onChange={patch=>updateEl(selectedEl.id,patch)} onDelete={()=>deleteEl(selectedEl.id)} onMoveUp={()=>moveLayer(selectedEl.id,"up")} onMoveDown={()=>moveLayer(selectedEl.id,"down")} />}
+
+      {/* レイヤーパネル */}
+      {elements.length>0&&<LayerPanel elements={sortedEls} selected={selected} onSelect={setSelected} onDelete={deleteEl} onMove={moveLayer} />}
+
+      {/* 生成 */}
+      <button onClick={onGenerate} disabled={generating} style={{ width:"100%", marginTop:16, padding:"16px", background:generating?`${C.g1}60`:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, border:"none", borderRadius:14, color:C.white, fontSize:15, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:generating?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+        {generating?<><Spinner size={18} color={C.white}/>生成中...</>:"✦ バナーを生成する"}
+      </button>
+    </div>
+  );
+}
+
+function EditPanel({ el, onChange, onDelete, onMoveUp, onMoveDown }) {
+  return (
+    <div style={{ marginTop:14, background:C.white, borderRadius:14, padding:"16px", border:`1.5px solid ${C.g1}`, animation:"fadeUp 0.2s ease" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+        <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.g1 }}>{el.type==="text"?"✏️ テキスト編集":"🖼 画像編集"}</p>
+        <div style={{ display:"flex", gap:6 }}>
+          <button onClick={onMoveUp}   style={smallBtn()}>↑</button>
+          <button onClick={onMoveDown} style={smallBtn()}>↓</button>
+          <button onClick={onDelete}   style={smallBtn("#CC3333")}>削除</button>
+        </div>
+      </div>
+
+      {el.type==="text"&&(
+        <>
+          <textarea value={el.text} onChange={e=>onChange({text:e.target.value})} style={{ width:"100%", minHeight:72, padding:"10px", background:C.cream, border:`1px solid ${C.grayL}`, borderRadius:8, fontSize:15, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, resize:"vertical", outline:"none", marginBottom:10 }} />
+
+          <label style={labelS}>フォント</label>
+          <select value={el.font} onChange={e=>onChange({font:e.target.value})} style={selectS}>
+            {FONTS.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+
+          <label style={labelS}>サイズ</label>
+          <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+            {[["large","大"],["medium","中"],["small","小"]].map(([v,l])=>(
+              <button key={v} onClick={()=>onChange({size:v})} style={{ flex:1, padding:"8px", background:el.size===v?C.ink:C.cream, border:`1px solid ${el.size===v?C.ink:C.grayL}`, borderRadius:8, fontSize:13, fontWeight:700, color:el.size===v?C.white:C.ink, cursor:"pointer" }}>{l}</button>
+            ))}
+          </div>
+
+          <label style={labelS}>組方向</label>
+          <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+            {[[false,"横組み"],[true,"縦組み"]].map(([v,l])=>(
+              <button key={String(v)} onClick={()=>onChange({vertical:v})} style={{ flex:1, padding:"8px", background:el.vertical===v?C.ink:C.cream, border:`1px solid ${el.vertical===v?C.ink:C.grayL}`, borderRadius:8, fontSize:13, color:el.vertical===v?C.white:C.ink, cursor:"pointer" }}>{l}</button>
+            ))}
+          </div>
+
+          <label style={labelS}>文字色</label>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+            <input type="color" value={el.color} onChange={e=>onChange({color:e.target.value})} style={{ width:44, height:36, borderRadius:8, border:`1px solid ${C.grayL}`, cursor:"pointer", padding:2 }} />
+            <span style={{ fontSize:12, color:C.gray }}>{el.color}</span>
+          </div>
+
+          <label style={labelS}>エフェクト</label>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <input type="checkbox" id="shadow" checked={el.shadow} onChange={e=>onChange({shadow:e.target.checked})} />
+              <label htmlFor="shadow" style={{ fontSize:13, cursor:"pointer" }}>ドロップシャドウ</label>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <input type="checkbox" id="outline" checked={el.outline} onChange={e=>onChange({outline:e.target.checked})} />
+              <label htmlFor="outline" style={{ fontSize:13, cursor:"pointer" }}>縁取り</label>
+              {el.outline&&<>
+                <input type="color" value={el.outlineColor} onChange={e=>onChange({outlineColor:e.target.value})} style={{ width:32, height:28, borderRadius:6, border:"none", cursor:"pointer" }} />
+                <input type="range" min="1" max="20" value={el.outlineWidth} onChange={e=>onChange({outlineWidth:Number(e.target.value)})} style={{ flex:1 }} />
+                <span style={{ fontSize:11, color:C.gray }}>{el.outlineWidth}px</span>
+              </>}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <input type="checkbox" id="glow" checked={el.glow} onChange={e=>onChange({glow:e.target.checked})} />
+              <label htmlFor="glow" style={{ fontSize:13, cursor:"pointer" }}>外光（グロー）</label>
+              {el.glow&&<input type="color" value={el.glowColor} onChange={e=>onChange({glowColor:e.target.value})} style={{ width:32, height:28, borderRadius:6, border:"none", cursor:"pointer" }} />}
+            </div>
+          </div>
+        </>
+      )}
+      {el.type==="image"&&<p style={{ fontSize:12, color:C.gray, margin:0 }}>ドラッグで移動・ピンチで拡縮できます</p>}
+    </div>
+  );
+}
+
+function LayerPanel({ elements, selected, onSelect, onDelete, onMove }) {
+  return (
+    <div style={{ marginTop:14, background:C.white, borderRadius:12, padding:"14px", border:`1px solid ${C.grayLL}` }}>
+      <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.inkS }}>レイヤー（上が前面）</p>
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {elements.map(el=>(
+          <div key={el.id} onClick={()=>onSelect(el.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:8, background:selected===el.id?`${C.g1}15`:C.cream, border:`1px solid ${selected===el.id?C.g1:C.grayLL}`, cursor:"pointer" }}>
+            <span style={{ fontSize:14 }}>{el.type==="text"?"✏️":"🖼"}</span>
+            <span style={{ flex:1, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{el.type==="text"?el.text:"画像"}</span>
+            <button onClick={e=>{e.stopPropagation();onMove(el.id,"up");}} style={tinyBtn()}>↑</button>
+            <button onClick={e=>{e.stopPropagation();onMove(el.id,"down");}} style={tinyBtn()}>↓</button>
+            <button onClick={e=>{e.stopPropagation();if(confirm("削除？"))onDelete(el.id);}} style={tinyBtn("#CC3333")}>✕</button>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── DoneScreen ─────────────────────────────────────────────
-function DoneScreen({ downloadUrl, onReset }) {
+function DoneScreen({ downloadUrl, onReset, onBack }) {
   return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"36px 16px" }}>
       <div style={{ textAlign:"center", marginBottom:24 }}>
@@ -442,181 +486,109 @@ function DoneScreen({ downloadUrl, onReset }) {
         <h2 style={{ margin:0, fontSize:20, fontWeight:900 }}>バナー完成！</h2>
         <p style={{ margin:"6px 0 0", fontSize:12, color:C.gray }}>1080×1920px PNG</p>
       </div>
-      {downloadUrl && (
+      {downloadUrl&&(
         <div style={{ borderRadius:12, overflow:"hidden", border:`2px solid ${C.g1}`, marginBottom:18, display:"flex", justifyContent:"center", maxHeight:480 }}>
           <img src={downloadUrl} style={{ height:480, width:"auto", display:"block" }} />
         </div>
       )}
-      <a href={downloadUrl} download="sanseito_reel_banner.png" style={{ display:"block", width:"100%", padding:"17px", background:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, borderRadius:14, textAlign:"center", color:C.white, fontSize:15, fontWeight:700, textDecoration:"none", fontFamily:"'Noto Sans JP',sans-serif", boxShadow:`0 6px 28px ${C.g1}50`, letterSpacing:"0.06em" }}>↓ ダウンロード（透過PNG）</a>
-      <button onClick={onReset} style={{ width:"100%", marginTop:10, padding:"13px", background:"transparent", border:`1.5px solid ${C.grayL}`, borderRadius:14, color:C.inkS, fontSize:14, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>最初からやり直す</button>
+      <a href={downloadUrl} download="banner.png" style={{ display:"block", width:"100%", padding:"17px", background:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, borderRadius:14, textAlign:"center", color:C.white, fontSize:15, fontWeight:700, textDecoration:"none", fontFamily:"'Noto Sans JP',sans-serif", boxShadow:`0 6px 28px ${C.g1}50`, marginBottom:10 }}>↓ ダウンロード（PNG）</a>
+      <button onClick={onBack}  style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.grayL}`, borderRadius:14, color:C.inkS, fontSize:14, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer", marginBottom:8 }}>← 編集に戻る</button>
+      <button onClick={onReset} style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px solid ${C.grayL}`, borderRadius:14, color:C.gray, fontSize:13, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>最初からやり直す</button>
     </div>
   );
 }
 
 // ── Canvas描画 ─────────────────────────────────────────────
-function drawBanner(canvas, vals, offsets, scales, photoImg, bgImg, photoScale, photoPos, W, H) {
-  if (!canvas) return;
-  const r = W / CW;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, W, H);
+function drawCanvas(canvas, elements, bgImg, W, H, selectedId) {
+  if(!canvas)return;
+  const r=W/CW;
+  const ctx=canvas.getContext("2d");
+  ctx.clearRect(0,0,W,H);
+  if(bgImg){ ctx.drawImage(bgImg,0,0,W,H); }
+  else { const g=ctx.createLinearGradient(0,0,W,0); g.addColorStop(0,"rgb(235,97,0)"); g.addColorStop(1,"rgb(241,141,0)"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
 
-  // 1. 背景画像（bg.png）を全面に描画
-  if (bgImg) {
-    ctx.drawImage(bgImg, 0, 0, W, H);
-  } else {
-    // 背景画像がない場合はグラデで代替
-    const g = ctx.createLinearGradient(0, 0, W, 0);
-    g.addColorStop(0, "rgb(235,97,0)");
-    g.addColorStop(1, "rgb(241,141,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  // 2. 写真（透明エリア内）
-  if (photoImg) drawPhotoInArea(ctx, photoImg, photoScale, photoPos, r);
-
-  // 3. テキスト要素
-  TEXT_ITEMS.forEach(item => {
-    const text = (vals[item.key] || "").trim();
-    if (!text) return;
-
-    const ox = offsets[item.key]?.x || 0;
-    const oy = offsets[item.key]?.y || 0;
-    const sc = scales[item.key] || 1;
-
-    // エリア左上（オフセット込み）
-    const lx = (item.layout.x + ox) * r;
-    const ly = (item.layout.y + oy) * r;
-    const lw = item.layout.w * sc * r;
-    const lh = item.layout.h * sc * r;
-
-    // フォントサイズをエリア幅に合わせて自動縮小
-    let fs = item.baseSize * sc * r;
-    ctx.font = `${item.fontWeight} ${fs}px ${item.fontFamily},sans-serif`;
-    while (ctx.measureText(text).width > lw - 8*r && fs > 10*r) {
-      fs -= r * 0.5;
-      ctx.font = `${item.fontWeight} ${fs}px ${item.fontFamily},sans-serif`;
-    }
-
-    ctx.fillStyle = item.color;
-    ctx.textBaseline = "middle";
-
-    if (item.key === "name") {
-      // ドロップシャドウ
-      ctx.save();
-      ctx.shadowColor    = "rgba(0,0,0,0.75)";
-      ctx.shadowOffsetX  = 2 * r;
-      ctx.shadowOffsetY  = 2 * r;
-      ctx.shadowBlur     = 1 * r;
-      ctx.textAlign = "center";
-      ctx.fillText(text, lx + lw/2, ly + lh/2);
-      ctx.restore();
-
-    } else if (item.alignLeft) {
-      // 左揃え（キャッチコピーなど）
-      ctx.textAlign = "left";
-      ctx.fillText(text, lx, ly + lh/2);
-
-    } else {
-      // 中央揃え
-      ctx.textAlign = "center";
-      ctx.fillText(text, lx + lw/2, ly + lh/2);
-    }
+  [...elements].sort((a,b)=>a.zIndex-b.zIndex).forEach(el=>{
+    if(el.type==="image") drawImageEl(ctx,el,r,selectedId===el.id);
+    else drawTextEl(ctx,el,r,selectedId===el.id);
   });
-
-  // 4. 投開票日（赤・中央）
-  const voteText = (vals.voteday || "").trim();
-  if (voteText) {
-    const { x, y, w, h } = L.VOTE;
-    let fs = 72*r;
-    ctx.font = `900 ${fs}px 'Noto Sans JP',sans-serif`;
-    while (ctx.measureText(voteText).width > w*r - 8*r && fs > 16*r) {
-      fs -= r; ctx.font = `900 ${fs}px 'Noto Sans JP',sans-serif`;
-    }
-    ctx.fillStyle = C.red;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-    ctx.fillText(voteText, (x+w/2)*r, (y+h/2)*r);
-  }
-
-  // 5. 期日前投票期間（黒・中央・エリアいっぱい）
-  const periodText = (vals.period || "").trim();
-  if (periodText) {
-    const { x, y, w, h } = L.PERIOD;
-    let fs = 38*r;
-    ctx.font = `700 ${fs}px 'Noto Sans JP',sans-serif`;
-    while (ctx.measureText(periodText).width > w*r - 4*r && fs > 10*r) {
-      fs -= r*0.5; ctx.font = `700 ${fs}px 'Noto Sans JP',sans-serif`;
-    }
-    ctx.fillStyle = C.ink;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-    ctx.fillText(periodText, (x+w/2)*r, (y+h/2)*r);
-  }
-
-  ctx.textAlign = "left";
 }
 
-// ── 写真エリア描画 ─────────────────────────────────────────
-function drawPhotoInArea(ctx, img, scale, pos, r) {
-  const { x, y, w, h } = L.PHOTO;
-  const ax=x*r, ay=y*r, aw=w*r, ah=h*r;
+function drawTextEl(ctx, el, r, isSelected) {
+  const font=FONTS.find(f=>f.id===el.font)||FONTS[0];
+  const fontSize=TEXT_SIZES[el.size]*el.scale*r;
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(ax, ay, aw, ah);
-  ctx.clip();
-  const ia = img.width/img.height, aa = aw/ah;
-  let dw, dh;
-  if (ia>aa) { dh=ah*scale; dw=dh*ia; } else { dw=aw*scale; dh=dw/ia; }
-  ctx.drawImage(img, ax+(aw-dw)/2+pos.x*r, ay+(ah-dh)/2+pos.y*r, dw, dh);
+  ctx.translate(el.x*r, el.y*r);
+  ctx.font=`${font.weight} ${fontSize}px ${font.family},sans-serif`;
+
+  const applyFx = (drawFn) => {
+    if(el.glow){ ctx.save(); ctx.shadowColor=el.glowColor; ctx.shadowBlur=30*r; drawFn(); ctx.restore(); }
+    if(el.outline){ ctx.save(); ctx.strokeStyle=el.outlineColor; ctx.lineWidth=el.outlineWidth*r; ctx.lineJoin="round"; ctx.strokeText&&el.text.split("\n").forEach((line,i)=>{ if(el.vertical){}else ctx.strokeText(line,0,(-el.text.split("\n").length/2+i+0.5)*fontSize*1.3); }); ctx.restore(); }
+    if(el.shadow){ ctx.save(); ctx.shadowColor="rgba(0,0,0,0.7)"; ctx.shadowOffsetX=2*r; ctx.shadowOffsetY=2*r; ctx.shadowBlur=2*r; drawFn(); ctx.restore(); }
+    drawFn();
+  };
+
+  ctx.fillStyle=el.color;
+  if(el.vertical){
+    ctx.textAlign="center"; ctx.textBaseline="top";
+    const chars=el.text.split("");
+    const totalH=chars.length*fontSize*1.1;
+    chars.forEach((ch,i)=>{
+      const y=-totalH/2+i*fontSize*1.1;
+      if(el.outline){ ctx.save(); ctx.strokeStyle=el.outlineColor; ctx.lineWidth=el.outlineWidth*r; ctx.lineJoin="round"; ctx.strokeText(ch,0,y); ctx.restore(); }
+      if(el.shadow){ ctx.save(); ctx.shadowColor="rgba(0,0,0,0.7)"; ctx.shadowOffsetX=2*r; ctx.shadowOffsetY=2*r; ctx.shadowBlur=2*r; ctx.fillStyle=el.color; ctx.fillText(ch,0,y); ctx.restore(); }
+      if(el.glow){ ctx.save(); ctx.shadowColor=el.glowColor; ctx.shadowBlur=30*r; ctx.fillStyle=el.color; ctx.fillText(ch,0,y); ctx.restore(); }
+      ctx.fillStyle=el.color; ctx.fillText(ch,0,y);
+    });
+  } else {
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    const lines=el.text.split("\n");
+    const totalH=lines.length*fontSize*1.3;
+    lines.forEach((line,i)=>{
+      const y=-totalH/2+(i+0.5)*fontSize*1.3;
+      if(el.outline){ ctx.save(); ctx.strokeStyle=el.outlineColor; ctx.lineWidth=el.outlineWidth*r; ctx.lineJoin="round"; ctx.strokeText(line,0,y); ctx.restore(); }
+      if(el.shadow){ ctx.save(); ctx.shadowColor="rgba(0,0,0,0.7)"; ctx.shadowOffsetX=2*r; ctx.shadowOffsetY=2*r; ctx.shadowBlur=2*r; ctx.fillStyle=el.color; ctx.fillText(line,0,y); ctx.restore(); }
+      if(el.glow){ ctx.save(); ctx.shadowColor=el.glowColor; ctx.shadowBlur=30*r; ctx.fillStyle=el.color; ctx.fillText(line,0,y); ctx.restore(); }
+      ctx.fillStyle=el.color; ctx.fillText(line,0,y);
+    });
+  }
+
+  if(isSelected){
+    const hw=getElHalfW(el)*el.scale*r, hh=getElHalfH(el)*el.scale*r;
+    ctx.strokeStyle="rgba(235,97,0,0.9)"; ctx.lineWidth=2; ctx.setLineDash([6,3]);
+    ctx.strokeRect(-hw,-hh,hw*2,hh*2); ctx.setLineDash([]);
+  }
   ctx.restore();
 }
 
-// ── 党ロゴ描画 ────────────────────────────────────────────
-function drawPartyLogo(ctx, r) {
-  const { x, y, w, h } = L.LOGO;
-  const cx = (x+w/2)*r;
-  const circleY = (y+h*0.34)*r;
-  const cr = w*0.38*r;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, circleY, cr, 0, Math.PI*2);
-  ctx.strokeStyle = C.white;
-  ctx.lineWidth = 5*r;
-  ctx.stroke();
-  ctx.font = `900 ${cr*0.95}px 'Noto Sans JP',sans-serif`;
-  ctx.fillStyle = C.white;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("参", cx, circleY);
-  ctx.font = `900 ${w*0.28*r}px 'Noto Sans JP',sans-serif`;
-  ctx.textBaseline = "top";
-  ctx.fillText("参政党", cx, (y+h*0.64)*r);
-  ctx.font = `400 ${w*0.12*r}px 'Noto Sans JP',sans-serif`;
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText("sanseito", cx, (y+h*0.85)*r);
+function drawImageEl(ctx, el, r, isSelected) {
+  if(!el.src)return;
+  const img=new Image(); img.src=el.src;
+  if(!img.complete)return;
+  const w=el.naturalW*el.scale*r, h=el.naturalH*el.scale*r;
+  ctx.save(); ctx.translate(el.x*r,el.y*r);
+  ctx.drawImage(img,-w/2,-h/2,w,h);
+  if(isSelected){ ctx.strokeStyle="rgba(235,97,0,0.9)"; ctx.lineWidth=2; ctx.setLineDash([6,3]); ctx.strokeRect(-w/2,-h/2,w,h); ctx.setLineDash([]); }
   ctx.restore();
-  ctx.textAlign = "left";
 }
 
-// ── Shared UI ─────────────────────────────────────────────
-function SectionLabel({ num, title, sub }) {
-  return (
-    <div>
-      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-        {num && <span style={{ fontSize:10, fontWeight:700, color:C.g1, letterSpacing:"0.12em" }}>{num}</span>}
-        <h2 style={{ fontSize:16, fontWeight:700, margin:0 }}>{title}</h2>
-      </div>
-      {sub && <p style={{ fontSize:11, color:C.gray, margin:"4px 0 0", lineHeight:1.6 }}>{sub}</p>}
-    </div>
-  );
+function getElHalfW(el){
+  if(el.type==="image")return el.naturalW/2;
+  const fs=TEXT_SIZES[el.size]||72;
+  if(el.vertical)return fs*0.6;
+  return Math.max(...el.text.split("\n").map(l=>l.length))*fs*0.55;
+}
+function getElHalfH(el){
+  if(el.type==="image")return el.naturalH/2;
+  const fs=TEXT_SIZES[el.size]||72;
+  if(el.vertical)return el.text.length*fs*1.1/2;
+  return el.text.split("\n").length*fs*1.3/2;
 }
 
-function PrimaryBtn({ children, onClick, disabled, flex }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{ flex:flex?1:undefined, width:flex?undefined:"100%", padding:"15px", background:disabled?C.grayL:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, border:"none", borderRadius:14, color:C.white, fontSize:15, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:disabled?"not-allowed":"pointer", boxShadow:disabled?"none":`0 4px 20px ${C.g1}45`, transition:"all 0.25s", display:"flex", alignItems:"center", justifyContent:"center", gap:8, letterSpacing:"0.06em" }}>{children}</button>
-  );
-}
+const toolBtn=(bg)=>({ padding:"9px 16px", background:bg, border:"none", borderRadius:10, color:C.white, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Noto Sans JP',sans-serif", display:"flex", alignItems:"center", gap:4 });
+const smallBtn=(bg=C.ink)=>({ padding:"5px 10px", background:bg, border:"none", borderRadius:6, color:C.white, fontSize:11, cursor:"pointer" });
+const tinyBtn=(bg=C.grayL)=>({ padding:"3px 7px", background:bg, border:"none", borderRadius:5, color:bg===C.grayL?C.ink:C.white, fontSize:10, cursor:"pointer" });
+const labelS={ display:"block", fontSize:11, fontWeight:700, color:C.gray, marginBottom:5 };
+const selectS={ width:"100%", padding:"9px 12px", marginBottom:10, background:C.cream, border:`1px solid ${C.grayL}`, borderRadius:8, fontSize:13, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, outline:"none" };
 
 function Spinner({ size=20, color=C.g1 }) {
   return <div style={{ width:size, height:size, flexShrink:0, border:`2.5px solid ${color}30`, borderTop:`2.5px solid ${color}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />;
