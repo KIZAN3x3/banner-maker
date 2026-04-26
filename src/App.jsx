@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 const fl = document.createElement("link");
 fl.rel = "stylesheet";
-fl.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Shippori+Mincho:wght@400;700;800&family=Zen+Old+Mincho:wght@400;700;900&family=Dela+Gothic+One&display=swap";
+fl.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Shippori+Mincho:wght@400;700;800&family=Zen+Old+Mincho:wght@400;700;900&display=swap";
 document.head.appendChild(fl);
 fl.onload = () => {
-  ["Noto Sans JP","Noto Serif JP","M PLUS 1p","M PLUS Rounded 1c","Shippori Mincho","Zen Old Mincho","Dela Gothic One"].forEach(f=>{
+  ["Noto Sans JP","Noto Serif JP","M PLUS 1p","M PLUS Rounded 1c","Shippori Mincho","Zen Old Mincho"].forEach(f=>{
     document.fonts.load(`700 16px '${f}'`).catch(()=>{});
   });
 };
@@ -20,12 +20,12 @@ const C = {
 
 const FONTS = [
   { id:"noto_sans",   name:"ゴシック（標準）",  family:"'Noto Sans JP'",      weight:"700" },
+  { id:"noto_sans_bk",name:"ゴシック（太字）",  family:"'Noto Sans JP'",      weight:"900" },
   { id:"noto_serif",  name:"明朝（標準）",      family:"'Noto Serif JP'",     weight:"700" },
   { id:"mplus",       name:"ゴシック（丸め）",  family:"'M PLUS 1p'",         weight:"700" },
   { id:"mplus_round", name:"丸ゴシック",        family:"'M PLUS Rounded 1c'", weight:"700" },
   { id:"shippori",    name:"明朝（上品）",      family:"'Shippori Mincho'",   weight:"700" },
   { id:"zen_mincho",  name:"明朝（格調）",      family:"'Zen Old Mincho'",    weight:"700" },
-  { id:"dela_gothic", name:"極太ゴシック",      family:"'Dela Gothic One'",   weight:"400" },
 ];
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
@@ -162,9 +162,17 @@ function MainApp() {
   };
 
   const addStamp = (name)=>{
-    const img=new Image();
-    img.onload=()=>{ pushHistory(elements); const el=defaultImage(`/stamps/${name}`,img.width,img.height,elements.length); setElements(e=>[...e,el]); setSelected(el.id); };
-    img.src=`/stamps/${name}?t=${Date.now()}`;
+    const src = `/stamps/${name}`;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload=()=>{
+      imgCache[src] = img;
+      pushHistory(elements);
+      const el = defaultImage(src, img.width, img.height, elements.length);
+      setElements(e=>[...e,el]);
+      setSelected(el.id);
+    };
+    img.src = src + "?t=" + Date.now();
   };
 
   const updateEl = (id,patch)=>setElements(e=>e.map(el=>el.id===id?{...el,...patch}:el));
@@ -354,22 +362,28 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
           ＋ 画像
           <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
         </label>
-        {stamps.length>0&&<button onClick={()=>setShowStamps(v=>!v)} style={TB("#7C3AED")}>🏷️ スタンプ</button>}
+        <button onClick={()=>setShowStamps(v=>!v)} style={TB(showStamps?"#5B21B6":"#7C3AED")}>＋ スタンプ{stamps.length===0?" (未登録)":""}</button>
         <button onClick={()=>setShowSample(v=>!v)} style={TB(showSample?"#555":"#888")}>{showSample?"お手本を隠す":"お手本を表示"}</button>
       </div>
 
       {/* スタンプ一覧 */}
-      {showStamps&&stamps.length>0&&(
+      {showStamps&&(
         <div style={{ marginTop:10, background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, padding:"12px", animation:"fadeUp 0.2s ease" }}>
-          <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.inkS }}>スタンプを選んでください</p>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
-            {stamps.map(name=>(
-              <button key={name} onClick={()=>{ addStamp(name); setShowStamps(false); }} style={{ background:C.cream, border:`1px solid ${C.grayLL}`, borderRadius:8, padding:6, cursor:"pointer" }}>
-                <img src={`/stamps/${name}`} style={{ width:"100%", height:60, objectFit:"contain", display:"block" }} />
-                <p style={{ margin:"4px 0 0", fontSize:9, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name.replace(/\.[^.]+$/,"")}</p>
-              </button>
-            ))}
-          </div>
+          <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.inkS }}>スタンプを選んでください（タップで追加）</p>
+          {stamps.length===0 ? (
+            <p style={{ fontSize:12, color:C.gray, textAlign:"center", padding:"10px 0" }}>スタンプが登録されていません<br/>管理者ページから追加できます</p>
+          ) : (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+              {stamps.map(name=>(
+                <button key={name} onClick={()=>{ addStamp(name); setShowStamps(false); }} style={{ background:C.cream, border:`1px solid ${C.grayLL}`, borderRadius:8, padding:6, cursor:"pointer" }}>
+                  <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/10px 10px", borderRadius:4, marginBottom:4 }}>
+                    <img src={`/stamps/${name}?t=${Date.now()}`} style={{ width:"100%", height:56, objectFit:"contain", display:"block" }} />
+                  </div>
+                  <p style={{ margin:0, fontSize:9, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name.replace(/\.[^.]+$/,"")}</p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
