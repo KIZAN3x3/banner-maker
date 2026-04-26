@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 const fl = document.createElement("link");
 fl.rel = "stylesheet";
-fl.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Shippori+Mincho:wght@400;700;800&family=Zen+Old+Mincho:wght@400;700;900&display=swap";
+fl.href = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=M+PLUS+1p:wght@400;700;800&family=M+PLUS+Rounded+1c:wght@400;700;800&family=Shippori+Mincho:wght@400;700;800&family=Zen+Old+Mincho:wght@400;700;900&family=Dela+Gothic+One&display=swap";
 document.head.appendChild(fl);
 fl.onload = () => {
-  ["Noto Sans JP","Noto Serif JP","M PLUS 1p","M PLUS Rounded 1c","Shippori Mincho","Zen Old Mincho"].forEach(f=>{
+  ["Noto Sans JP","Noto Serif JP","M PLUS 1p","M PLUS Rounded 1c","Shippori Mincho","Zen Old Mincho","Dela Gothic One"].forEach(f=>{
     document.fonts.load(`700 16px '${f}'`).catch(()=>{});
   });
 };
@@ -25,6 +25,7 @@ const FONTS = [
   { id:"mplus_round", name:"丸ゴシック",        family:"'M PLUS Rounded 1c'", weight:"700" },
   { id:"shippori",    name:"明朝（上品）",      family:"'Shippori Mincho'",   weight:"700" },
   { id:"zen_mincho",  name:"明朝（格調）",      family:"'Zen Old Mincho'",    weight:"700" },
+  { id:"dela_gothic", name:"極太ゴシック",      family:"'Dela Gothic One'",   weight:"400" },
 ];
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
@@ -375,13 +376,15 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
       {/* レイヤー＋編集パネル */}
       {elements.length>0&&(
         <div style={{ marginTop:12, background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
-          <p style={{ margin:0, padding:"10px 14px", fontSize:12, fontWeight:700, color:C.inkS, borderBottom:`1px solid ${C.grayLL}`, background:C.cream }}>レイヤー（上が前面）</p>
+          <p style={{ margin:0, padding:"10px 14px", fontSize:12, fontWeight:700, color:C.inkS, borderBottom:`1px solid ${C.grayLL}`, background:C.cream }}>レイヤー（上が前面）　↑↓で並び替え</p>
           <div style={{ display:"flex", flexDirection:"column" }}>
             {sortedEls.map((el,idx)=>(
               <div key={el.id} style={{ borderBottom:idx<sortedEls.length-1?`1px solid ${C.grayLL}`:"none" }}>
                 <div onClick={()=>{ setSelected(el.id); if(editing!==el.id)setEditing(null); }} style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px", background:selected===el.id?`${C.g1}10`:C.white, cursor:"pointer" }}>
                   <span style={{ fontSize:16, flexShrink:0 }}>{el.type==="text"?"✏️":"🖼"}</span>
-                  <span style={{ flex:1, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:selected===el.id?C.g1:C.ink, fontWeight:selected===el.id?700:400 }}>{el.type==="text"?el.text:"画像"}</span>
+                  <span style={{ flex:1, fontSize:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:selected===el.id?C.g1:C.ink, fontWeight:selected===el.id?700:400 }}>
+                    {el.type==="text" ? el.text : el.src?.includes("/stamps/") ? "🏷️ "+el.src.split("/stamps/")[1].split("?")[0] : "画像"}
+                  </span>
                   <div style={{ display:"flex", gap:4, flexShrink:0 }}>
                     {selected===el.id&&el.type==="text"&&editing!==el.id&&(
                       <button onClick={e=>{e.stopPropagation();setEditing(el.id);}} style={{ padding:"4px 10px", background:C.g1, border:"none", borderRadius:6, color:C.white, fontSize:11, fontWeight:700, cursor:"pointer" }}>編集</button>
