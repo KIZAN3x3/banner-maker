@@ -248,7 +248,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
-              <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しい画像をドロップ\nまたはタップして選択" small />
+              <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" small />
             </div>
           </div>
 
@@ -261,7 +261,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
-              <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="新しい画像をドロップ\nまたはタップして選択" small />
+              <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" small />
             </div>
           </div>
 
