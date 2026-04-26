@@ -137,10 +137,17 @@ function TabManager() {
   };
 
   const deleteTab = async (tabId) => {
-    if (!confirm("このタブを削除しますか？")) return;
+    if (!confirm("このタブを削除しますか？\n背景画像・お手本画像も削除されます。")) return;
     const current = await fetchTabs();
+    const target = current.find(t=>t.id===tabId);
     const updated = current.filter(t=>t.id!==tabId);
+    // tabs.json更新
     await ghPut("public/tabs.json", jsonToBase64(updated), `Delete tab: ${tabId}`);
+    // 画像ファイルも削除
+    if (target) {
+      try { await ghDelete(`public/${target.bg.replace(/^\//,"")}`, `Delete bg: ${tabId}`); } catch {}
+      try { await ghDelete(`public/${target.sample.replace(/^\//,"")}`, `Delete sample: ${tabId}`); } catch {}
+    }
     setTabs(updated);
   };
 
@@ -209,7 +216,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
       {/* ヘッダー行 */}
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
         {/* サムネイル */}
-        <img src={tab.sample} onError={e=>e.target.style.display="none"}
+        <img src={window.location.origin + tab.sample} onError={e=>e.target.style.display="none"}
           style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0 }} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontSize:14, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tab.label}</p>
@@ -231,7 +238,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
           {!samplePrev && tab.sample && (
             <div style={{ marginBottom:8 }}>
               <p style={{ margin:"0 0 4px", fontSize:11, color:C.gray }}>現在の画像：</p>
-              <img src={tab.sample+"?t="+Date.now()} style={{ height:80, objectFit:"contain", borderRadius:6, border:`1px solid ${C.grayLL}` }} />
+              <img src={window.location.origin + tab.sample} style={{ height:80, objectFit:"contain", borderRadius:6, border:`1px solid ${C.grayLL}` }} />
             </div>
           )}
           <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しいお手本画像をドロップ / タップして選択" small />
