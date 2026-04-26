@@ -19,29 +19,37 @@ const SNS_SIZES = [
   { id:"feed_sq", label:"フィード正方形",        w:1080, h:1080 },
 ];
 
-// ── サーバーサイドAPI経由のGitHub操作 ─────────────────────
+// ── サーバーサイドAPI ─────────────────────────────────────
 async function ghPut(path, base64, message) {
   const res = await fetch(`/api/github?path=${encodeURIComponent(path)}`, {
-    method:  "PUT",
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ content: base64, message }),
+    body: JSON.stringify({ content: base64, message }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`PUT失敗 [${res.status}]: ${err.error || ""}`);
+    const err = await res.json().catch(()=>({}));
+    throw new Error(`PUT失敗 [${res.status}]: ${err.error||""}`);
   }
 }
 
 async function ghDelete(path, message) {
   const res = await fetch(`/api/github?path=${encodeURIComponent(path)}`, {
-    method:  "DELETE",
+    method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ message }),
+    body: JSON.stringify({ message }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`DELETE失敗 [${res.status}]: ${err.error || ""}`);
+    const err = await res.json().catch(()=>({}));
+    throw new Error(`DELETE失敗 [${res.status}]: ${err.error||""}`);
   }
+}
+
+async function ghGetDir(path) {
+  const res = await fetch(`/api/github?path=${encodeURIComponent(path)}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!data.isDir) return [];
+  return data.items || [];
 }
 
 async function ghGetContent(path) {
@@ -63,11 +71,16 @@ async function loadTabsFromGH() {
   if (!data?.content) return [];
   const decoded = decodeURIComponent(
     atob(data.content.replace(/\n/g,""))
-      .split("").map(c => "%" + c.charCodeAt(0).toString(16).padStart(2,"0")).join("")
+      .split("").map(c=>"%" + c.charCodeAt(0).toString(16).padStart(2,"0")).join("")
   );
   const parsed = JSON.parse(decoded);
   if (!Array.isArray(parsed)) throw new Error("tabs.json の形式が不正です");
   return parsed;
+}
+
+async function loadPartsForTab(tabId) {
+  const items = await ghGetDir(`public/stamps/${tabId}`);
+  return items.filter(f=>f.type==="file" && f.name!=="index.json").map(f=>f.name);
 }
 
 async function triggerDeploy() {
@@ -94,8 +107,7 @@ export default function Admin() {
           <p style={{ margin:0, fontSize:18, fontWeight:700, color:C.white }}>管理者ページ</p>
         </div>
         <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&login()} placeholder="管理者パスワード"
-          style={{ width:"100%", padding:"13px 16px", background:"#2A1E12", border:`1.5px solid ${err?C.red:C.grayL}`, borderRadius:10, color:C.white, fontSize:16, fontFamily:"'Noto Sans JP',sans-serif", outline:"none", boxSizing:"border-box" }}
-        />
+          style={{ width:"100%", padding:"13px 16px", background:"#2A1E12", border:`1.5px solid ${err?C.red:C.grayL}`, borderRadius:10, color:C.white, fontSize:16, fontFamily:"'Noto Sans JP',sans-serif", outline:"none", boxSizing:"border-box" }} />
         {err&&<p style={{ color:C.red, fontSize:12, margin:"6px 0 0", textAlign:"center" }}>{err}</p>}
         <button onClick={login} style={{ width:"100%", marginTop:14, padding:"14px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:12, color:C.white, fontSize:15, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>ログイン</button>
       </div>
@@ -111,15 +123,8 @@ export default function Admin() {
         <a href="/" style={{ fontSize:12, color:C.gray, textDecoration:"none" }}>← アプリへ</a>
       </header>
 
-      <div style={{ background:C.white, borderBottom:`1px solid ${C.grayLL}`, display:"flex" }}>
-        {[["tabs","📋 タブ管理"],["stamps","🏷️ スタンプ管理"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setPage(id)} style={{ flex:1, padding:"12px", background:"none", border:"none", borderBottom:`3px solid ${page===id?C.g1:"transparent"}`, color:page===id?C.g1:C.gray, fontSize:13, fontWeight:page===id?700:400, cursor:"pointer", fontFamily:"'Noto Sans JP',sans-serif" }}>{label}</button>
-        ))}
-      </div>
-
       <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px" }}>
-        {page==="tabs"   && <TabManager />}
-        {page==="stamps" && <StampManager />}
+        <TabManager />
       </div>
 
       <style>{`*{box-sizing:border-box} @keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}} input::placeholder{color:#C0B8B0}`}</style>
@@ -137,28 +142,29 @@ function TabManager() {
 
   const reload = async () => {
     setLoadErr("");
-    try {
-      const data = await loadTabsFromGH();
-      setTabs(data);
-    } catch(e) {
-      setLoadErr("tabs.json の読み込みに失敗しました: " + e.message);
-      setTabs([]);
-    }
+    try { setTabs(await loadTabsFromGH()); }
+    catch(e) { setLoadErr("読み込みエラー: "+e.message); setTabs([]); }
   };
 
   const handleDelete = async (tab) => {
-    if (!confirm(`「${tab.label}」を削除しますか？\n背景画像・サンプル画像も削除されます。`)) return;
+    if (!confirm(`「${tab.label}」を削除しますか？\n背景・サンプル・パーツも削除されます。`)) return;
     try {
       const current = await loadTabsFromGH();
-      const updated  = current.filter(t=>t.id!==tab.id);
+      const updated = current.filter(t=>t.id!==tab.id);
       await ghPut("public/tabs.json", jsonToB64(updated), `Delete tab: ${tab.label}`);
       try { await ghDelete(`public/${tab.bg.replace(/^\//,"")}`,     `Delete bg: ${tab.id}`); } catch {}
       try { await ghDelete(`public/${tab.sample.replace(/^\//,"")}`, `Delete sample: ${tab.id}`); } catch {}
+      // パーツフォルダ内を削除
+      try {
+        const parts = await loadPartsForTab(tab.id);
+        for (const name of parts) {
+          await ghDelete(`public/stamps/${tab.id}/${name}`, `Delete part: ${name}`);
+        }
+        await ghDelete(`public/stamps/${tab.id}/index.json`, `Delete parts index: ${tab.id}`);
+      } catch {}
       setTabs(updated);
       await triggerDeploy();
-    } catch(e) {
-      alert("削除エラー: " + e.message);
-    }
+    } catch(e) { alert("削除エラー: "+e.message); }
   };
 
   if (tabs===null) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32}/></div>;
@@ -191,6 +197,7 @@ function TabManager() {
 // ── タブカード ────────────────────────────────────────────
 function TabCard({ tab, onDelete, onUpdate }) {
   const [open,       setOpen]       = useState(false);
+  const [activePane, setActivePane] = useState("info"); // "info" | "parts"
   const [label,      setLabel]      = useState(tab.label);
   const [sampleFile, setSampleFile] = useState(null);
   const [samplePrev, setSamplePrev] = useState(null);
@@ -200,7 +207,6 @@ function TabCard({ tab, onDelete, onUpdate }) {
   const [msg,        setMsg]        = useState("");
   const size = SNS_SIZES.find(s=>s.w===tab.w&&s.h===tab.h)||SNS_SIZES[0];
 
-  // サムネイルはGitHub rawから直接取得（キャッシュバスター付き）
   const sampleUrl = `${RAW_BASE}${tab.sample}?t=${tab.id}`;
   const bgUrl     = `${RAW_BASE}${tab.bg}?t=${tab.id}`;
 
@@ -208,18 +214,11 @@ function TabCard({ tab, onDelete, onUpdate }) {
     if (!label.trim()) { setMsg("タブ名を入力してください"); return; }
     setStatus("uploading"); setMsg("更新中...");
     try {
-      if (sampleFile) {
-        const b64 = await toBase64(sampleFile);
-        await ghPut(`public/${tab.sample.replace(/^\//,"")}`, b64, `Update sample: ${tab.label}`);
-      }
-      if (bgFile) {
-        const b64 = await toBase64(bgFile);
-        await ghPut(`public/${tab.bg.replace(/^\//,"")}`, b64, `Update bg: ${tab.label}`);
-      }
+      if (sampleFile) { await ghPut(`public/${tab.sample.replace(/^\//,"")}`, await toBase64(sampleFile), `Update sample: ${tab.label}`); }
+      if (bgFile)     { await ghPut(`public/${tab.bg.replace(/^\//,"")}`,     await toBase64(bgFile),     `Update bg: ${tab.label}`); }
       const updatedTab = { ...tab, label:label.trim() };
       const current    = await loadTabsFromGH();
-      const newTabs    = current.map(t=>t.id===tab.id?updatedTab:t);
-      await ghPut("public/tabs.json", jsonToB64(newTabs), `Update tab: ${label}`);
+      await ghPut("public/tabs.json", jsonToB64(current.map(t=>t.id===tab.id?updatedTab:t)), `Update tab: ${label}`);
       await triggerDeploy();
       setStatus("done"); setMsg("✅ 更新しました！");
       onUpdate(updatedTab);
@@ -229,8 +228,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
   return (
     <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
-        <img src={sampleUrl} alt=""
-          onError={e=>e.target.style.visibility="hidden"}
+        <img src={sampleUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
           style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0, background:C.grayLL }} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontSize:14, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tab.label}</p>
@@ -245,40 +243,140 @@ function TabCard({ tab, onDelete, onUpdate }) {
       </div>
 
       {open&&(
-        <div style={{ padding:"16px", borderTop:`1px solid ${C.grayLL}`, background:C.cream, animation:"fadeUp 0.2s ease" }}>
-          <label style={LS}>タブ名</label>
-          <input value={label} onChange={e=>setLabel(e.target.value)} style={IS} />
-
-          <label style={LS}>① サンプル画像を差し替え（任意）</label>
-          <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
-            <div>
-              <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={sampleUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
-                style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
-            </div>
-            <div style={{ flex:1 }}>
-              <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" />
-            </div>
+        <div style={{ borderTop:`1px solid ${C.grayLL}`, animation:"fadeUp 0.2s ease" }}>
+          {/* タブ切り替え */}
+          <div style={{ display:"flex", borderBottom:`1px solid ${C.grayLL}` }}>
+            {[["info","📋 タブ情報"],["parts","🧩 パーツ管理"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setActivePane(id)}
+                style={{ flex:1, padding:"10px", background:"none", border:"none", borderBottom:`3px solid ${activePane===id?C.g1:"transparent"}`, color:activePane===id?C.g1:C.gray, fontSize:12, fontWeight:activePane===id?700:400, cursor:"pointer", fontFamily:"'Noto Sans JP',sans-serif" }}>
+                {label}
+              </button>
+            ))}
           </div>
 
-          <label style={LS}>② 背景画像を差し替え（任意）</label>
-          <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
-            <div>
-              <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={bgUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
-                style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
-            </div>
-            <div style={{ flex:1 }}>
-              <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" />
-            </div>
-          </div>
+          {/* タブ情報 */}
+          {activePane==="info"&&(
+            <div style={{ padding:"16px", background:C.cream }}>
+              <label style={LS}>タブ名</label>
+              <input value={label} onChange={e=>setLabel(e.target.value)} style={IS} />
 
-          {msg&&<p style={{ margin:"0 0 10px", fontSize:12, color:status==="done"?C.green:status==="error"?C.red:C.g1 }}>{msg}</p>}
+              <label style={LS}>① サンプル画像を差し替え（任意）</label>
+              <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
+                <div>
+                  <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
+                  <img src={sampleUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
+                    style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
+                </div>
+                <div style={{ flex:1 }}><DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" /></div>
+              </div>
 
-          <button onClick={handleUpdate} disabled={status==="uploading"}
-            style={{ width:"100%", padding:"12px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:14, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            {status==="uploading"?<><Spinner size={14} color={C.white}/>更新中...</>:"更新する"}
-          </button>
+              <label style={LS}>② 背景画像を差し替え（任意）</label>
+              <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
+                <div>
+                  <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
+                  <img src={bgUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
+                    style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
+                </div>
+                <div style={{ flex:1 }}><DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" /></div>
+              </div>
+
+              {msg&&<p style={{ margin:"0 0 10px", fontSize:12, color:status==="done"?C.green:status==="error"?C.red:C.g1 }}>{msg}</p>}
+              <button onClick={handleUpdate} disabled={status==="uploading"}
+                style={{ width:"100%", padding:"12px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:14, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                {status==="uploading"?<><Spinner size={14} color={C.white}/>更新中...</>:"更新する"}
+              </button>
+            </div>
+          )}
+
+          {/* パーツ管理 */}
+          {activePane==="parts"&&<PartsManager tabId={tab.id} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── パーツ管理（タブごと） ────────────────────────────────
+function PartsManager({ tabId }) {
+  const [parts,     setParts]     = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(()=>{ loadParts(); },[tabId]);
+
+  const loadParts = async () => {
+    setParts(null);
+    const names = await loadPartsForTab(tabId);
+    setParts(names);
+  };
+
+  const uploadParts = async (files) => {
+    setUploading(true);
+    const newNames = [];
+    for (const file of files) {
+      try {
+        const b64 = await toBase64(file);
+        await ghPut(`public/stamps/${tabId}/${file.name}`, b64, `Add part: ${file.name}`);
+        newNames.push(file.name);
+      } catch(e) { alert("アップロードエラー: "+e.message); }
+    }
+    const updated = [...(parts||[]), ...newNames];
+    await ghPut(`public/stamps/${tabId}/index.json`,
+      btoa(unescape(encodeURIComponent(JSON.stringify(updated)))),
+      `Update parts index: ${tabId}`
+    );
+    setParts(updated);
+    await triggerDeploy();
+    setUploading(false);
+  };
+
+  const deletePart = async (name) => {
+    if (!confirm(`「${name}」を削除しますか？`)) return;
+    try {
+      await ghDelete(`public/stamps/${tabId}/${name}`, `Delete part: ${name}`);
+      const updated = (parts||[]).filter(p=>p!==name);
+      await ghPut(`public/stamps/${tabId}/index.json`,
+        btoa(unescape(encodeURIComponent(JSON.stringify(updated)))),
+        `Update parts index: ${tabId}`
+      );
+      setParts(updated);
+      await triggerDeploy();
+    } catch(e) { alert("削除エラー: "+e.message); }
+  };
+
+  if (parts===null) return <div style={{ textAlign:"center", padding:24 }}><Spinner size={24}/></div>;
+
+  return (
+    <div style={{ padding:"16px", background:C.cream }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+        <p style={{ margin:0, fontSize:13, fontWeight:700 }}>パーツ（{parts.length}件）</p>
+        <label style={{ padding:"7px 14px", background:uploading?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:9, color:C.white, fontSize:12, fontWeight:700, cursor:uploading?"not-allowed":"pointer" }}>
+          {uploading?<><Spinner size={12} color={C.white}/> アップロード中...</>:"＋ パーツを追加"}
+          <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={uploading}
+            onChange={e=>{ uploadParts(Array.from(e.target.files)); e.target.value=""; }} />
+        </label>
+      </div>
+
+      <div style={{ background:"#FFF8E1", border:"1px solid #F59E0B", borderRadius:8, padding:"8px 12px", marginBottom:12 }}>
+        <p style={{ margin:0, fontSize:11, color:"#92400E" }}>📌 PNG推奨（透過背景推奨）　複数同時選択可能</p>
+      </div>
+
+      {parts.length===0 ? (
+        <p style={{ textAlign:"center", color:C.gray, padding:16, fontSize:12 }}>パーツがありません</p>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+          {parts.map(name=>(
+            <div key={name} style={{ background:C.white, borderRadius:10, border:`1px solid ${C.grayLL}`, overflow:"hidden", textAlign:"center" }}>
+              <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/14px 14px", padding:8 }}>
+                <img src={`${RAW_BASE}/stamps/${tabId}/${name}?t=${Date.now()}`} alt={name}
+                  style={{ width:"100%", maxHeight:72, objectFit:"contain", display:"block", margin:"0 auto" }} />
+              </div>
+              <div style={{ padding:"6px 8px" }}>
+                <p style={{ margin:0, fontSize:10, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</p>
+                <button onClick={()=>deletePart(name)}
+                  style={{ marginTop:4, padding:"3px 10px", background:"none", border:`1px solid ${C.red}`, borderRadius:6, color:C.red, fontSize:10, cursor:"pointer" }}>削除</button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -307,26 +405,25 @@ function AddTabForm({ onAdded }) {
       const smName = `sample_${tabId}.png`;
       const size   = SNS_SIZES.find(s=>s.id===sizeId)||SNS_SIZES[0];
 
-      const bgB64 = await toBase64(bgFile);
-      await ghPut(`public/${bgName}`, bgB64, `Add bg: ${label}`);
-
+      await ghPut(`public/${bgName}`, await toBase64(bgFile), `Add bg: ${label}`);
       setMsg("② サンプル画像をアップロード中...");
-      const smB64 = await toBase64(sampleFile);
-      await ghPut(`public/${smName}`, smB64, `Add sample: ${label}`);
+      await ghPut(`public/${smName}`, await toBase64(sampleFile), `Add sample: ${label}`);
 
-      setMsg("③ タブ情報を保存中...");
+      setMsg("③ パーツフォルダを初期化中...");
+      await ghPut(`public/stamps/${tabId}/index.json`,
+        btoa(unescape(encodeURIComponent(JSON.stringify([])))),
+        `Init parts for: ${label}`
+      );
+
+      setMsg("④ タブ情報を保存中...");
       const currentTabs = await loadTabsFromGH();
       const newTab = { id:tabId, label:label.trim(), bg:`/${bgName}`, sample:`/${smName}`, w:size.w, h:size.h };
       await ghPut("public/tabs.json", jsonToB64([...currentTabs, newTab]), `Add tab: ${label}`);
 
       await triggerDeploy();
-      setStatus("done");
-      setMsg("✅ 追加しました！");
+      setStatus("done"); setMsg("✅ 追加しました！");
       onAdded(newTab);
-    } catch(e) {
-      setStatus("error");
-      setMsg("エラー: " + e.message);
-    }
+    } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
   };
 
   return (
@@ -360,115 +457,17 @@ function AddTabForm({ onAdded }) {
   );
 }
 
-// ── スタンプ管理 ──────────────────────────────────────────
-function StampManager() {
-  const [stamps,    setStamps]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [uploading, setUploading] = useState(false);
-
-  useEffect(()=>{ loadStamps(); },[]);
-
-  const loadStamps = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/github?path=${encodeURIComponent("public/stamps")}`);
-      if (res.ok) {
-        const data = await res.json();
-        // ディレクトリ一覧はcontentフィールドではなくGitHub APIが配列を返す
-        // サーバー側でそのまま返すよう対応が必要なので、ここでは既存方式を維持
-      }
-    } catch {}
-    // スタンプはGitHub APIのディレクトリ取得が必要なので既存方式を維持
-    try {
-      const res = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/banner-maker/contents/public/stamps`,
-        { headers:{ Accept:"application/vnd.github.v3+json" } }
-      );
-      if (res.ok) {
-        const files = await res.json();
-        setStamps(Array.isArray(files)?files.filter(f=>f.type==="file"&&f.name!=="index.json").map(f=>f.name):[]);
-      } else { setStamps([]); }
-    } catch { setStamps([]); }
-    setLoading(false);
-  };
-
-  const uploadStamps = async (files) => {
-    setUploading(true);
-    const newNames = [];
-    for (const file of files) {
-      try {
-        const b64 = await toBase64(file);
-        await ghPut(`public/stamps/${file.name}`, b64, `Add stamp: ${file.name}`);
-        newNames.push(file.name);
-      } catch(e) { alert("エラー: "+e.message); }
-    }
-    const updated = [...stamps, ...newNames];
-    setStamps(updated);
-    await ghPut("public/stamps/index.json", btoa(unescape(encodeURIComponent(JSON.stringify(updated)))), "Update stamps index");
-    await triggerDeploy();
-    setUploading(false);
-  };
-
-  const deleteStamp = async (name) => {
-    if (!confirm(`「${name}」を削除しますか？`)) return;
-    await ghDelete(`public/stamps/${name}`, `Delete stamp: ${name}`);
-    const updated = stamps.filter(s=>s!==name);
-    setStamps(updated);
-    await ghPut("public/stamps/index.json", btoa(unescape(encodeURIComponent(JSON.stringify(updated)))), "Update stamps index");
-    await triggerDeploy();
-  };
-
-  if (loading) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32}/></div>;
-
-  return (
-    <div>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-        <p style={{ margin:0, fontSize:16, fontWeight:700 }}>スタンプ管理（{stamps.length}件）</p>
-        <label style={{ padding:"8px 16px", background:uploading?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:uploading?"not-allowed":"pointer" }}>
-          {uploading?"アップロード中...":"＋ スタンプを追加"}
-          <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={uploading} onChange={e=>{ uploadStamps(Array.from(e.target.files)); e.target.value=""; }} />
-        </label>
-      </div>
-      <div style={{ background:"#FFF8E1", border:"1px solid #F59E0B", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
-        <p style={{ margin:0, fontSize:12, color:"#92400E", lineHeight:1.7 }}>📌 PNG推奨（透過背景推奨）　複数同時選択可能</p>
-      </div>
-      {stamps.length===0 ? (
-        <p style={{ textAlign:"center", color:C.gray, padding:20 }}>スタンプがありません</p>
-      ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
-          {stamps.map(name=>(
-            <div key={name} style={{ background:C.white, borderRadius:10, border:`1px solid ${C.grayLL}`, overflow:"hidden", textAlign:"center" }}>
-              <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/14px 14px", padding:8 }}>
-                <img src={`https://raw.githubusercontent.com/${GITHUB_OWNER}/banner-maker/main/public/stamps/${name}`} alt={name} style={{ width:"100%", maxHeight:80, objectFit:"contain", display:"block", margin:"0 auto" }} />
-              </div>
-              <div style={{ padding:"6px 8px" }}>
-                <p style={{ margin:0, fontSize:10, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</p>
-                <button onClick={()=>deleteStamp(name)} style={{ marginTop:4, padding:"3px 10px", background:"none", border:`1px solid ${C.red}`, borderRadius:6, color:C.red, fontSize:10, cursor:"pointer" }}>削除</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── DropZone ──────────────────────────────────────────────
 function DropZone({ preview, onFile, label }) {
   const [drag, setDrag] = useState(false);
   const ref = useRef();
   return (
-    <div
-      onDragOver={e=>{ e.preventDefault(); setDrag(true); }}
-      onDragLeave={()=>setDrag(false)}
+    <div onDragOver={e=>{ e.preventDefault(); setDrag(true); }} onDragLeave={()=>setDrag(false)}
       onDrop={e=>{ e.preventDefault(); setDrag(false); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith("image/"))onFile(f); }}
       onClick={()=>ref.current.click()}
-      style={{ border:`2px dashed ${drag?C.g1:C.grayL}`, borderRadius:10, padding:18, background:drag?`${C.g1}08`:C.cream, cursor:"pointer", textAlign:"center", transition:"all 0.2s", marginBottom:4 }}
-    >
-      {preview
-        ? <img src={preview} style={{ maxWidth:"100%", maxHeight:120, objectFit:"contain", borderRadius:6 }} />
-        : <p style={{ margin:0, fontSize:12, color:C.gray }}>{label}</p>
-      }
+      style={{ border:`2px dashed ${drag?C.g1:C.grayL}`, borderRadius:10, padding:18, background:drag?`${C.g1}08`:C.cream, cursor:"pointer", textAlign:"center", transition:"all 0.2s", marginBottom:4 }}>
+      {preview ? <img src={preview} style={{ maxWidth:"100%", maxHeight:120, objectFit:"contain", borderRadius:6 }} />
+               : <p style={{ margin:0, fontSize:12, color:C.gray }}>{label}</p>}
       <input ref={ref} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0])onFile(e.target.files[0]); e.target.value=""; }} />
     </div>
   );

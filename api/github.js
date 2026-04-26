@@ -20,24 +20,27 @@ export default async function handler(req, res) {
   const path = query.path;
   if (!path) return res.status(400).json({ error: "path required" });
 
-  // ── GET: SHAだけ返す ─────────────────────────────────
+  // ── GET: ファイル or ディレクトリ一覧 ────────────────
   if (method === "GET") {
     const r = await fetch(`${GH_BASE}/${path}`, { headers: HEADERS });
-    if (r.status === 404) return res.status(200).json({ sha: null });
+    if (r.status === 404) return res.status(200).json({ sha: null, isDir: false });
     if (!r.ok) return res.status(r.status).json({ error: await r.text() });
     const data = await r.json();
+    // ディレクトリの場合は配列が返る
+    if (Array.isArray(data)) {
+      return res.status(200).json({ isDir: true, items: data });
+    }
     return res.status(200).json({ sha: data.sha, content: data.content });
   }
 
   // ── PUT: ファイル作成・更新 ───────────────────────────
   if (method === "PUT") {
     const { content, message } = body;
-    // 既存SHAを取得
     const getR = await fetch(`${GH_BASE}/${path}`, { headers: HEADERS });
     const putBody = { message, content, branch: GITHUB_BRANCH };
     if (getR.ok) {
       const existing = await getR.json();
-      if (existing.sha) putBody.sha = existing.sha;
+      if (!Array.isArray(existing) && existing.sha) putBody.sha = existing.sha;
     }
     const r = await fetch(`${GH_BASE}/${path}`, {
       method:  "PUT",
@@ -52,8 +55,9 @@ export default async function handler(req, res) {
   if (method === "DELETE") {
     const { message } = body;
     const getR = await fetch(`${GH_BASE}/${path}`, { headers: HEADERS });
-    if (!getR.ok) return res.status(200).json({ ok: true }); // already gone
+    if (!getR.ok) return res.status(200).json({ ok: true });
     const existing = await getR.json();
+    if (Array.isArray(existing)) return res.status(400).json({ error: "cannot delete directory directly" });
     const r = await fetch(`${GH_BASE}/${path}`, {
       method:  "DELETE",
       headers: HEADERS,

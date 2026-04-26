@@ -62,9 +62,9 @@ async function fetchTabs() {
   } catch { return []; }
 }
 
-async function fetchParts() {
+async function fetchPartsForTab(tabId) {
   try {
-    const res = await fetch(`${RAW_BASE}/stamps/index.json?t=${Date.now()}`);
+    const res = await fetch(`${RAW_BASE}/stamps/${tabId}/index.json?t=${Date.now()}`);
     if (!res.ok) return [];
     return await res.json();
   } catch { return []; }
@@ -134,7 +134,6 @@ function MainApp() {
         .then(()=>setFontsReady(true)).catch(()=>setFontsReady(true))
     );
     fetchTabs().then(loaded=>{ setTabs(loaded); if(loaded.length>0)setActiveTab(loaded[0].id); setTabsLoaded(true); });
-    fetchParts().then(names=>setParts(names));
   },[]);
 
   useEffect(()=>{
@@ -143,6 +142,8 @@ function MainApp() {
     const ts=Date.now();
     const bg=new Image(); bg.crossOrigin="anonymous"; bg.onload=()=>setBgImg(bg); bg.onerror=()=>{}; bg.src=tab.bg+"?t="+ts;
     const sm=new Image(); sm.crossOrigin="anonymous"; sm.onload=()=>setSampleImg(sm); sm.src=tab.sample+"?t="+ts;
+    // ★アクティブタブのパーツを読み込む
+    fetchPartsForTab(tab.id).then(names=>setParts(names));
   },[activeTab]);
 
   useEffect(()=>{
@@ -163,7 +164,7 @@ function MainApp() {
   };
 
   const addPart = (name)=>{
-    const src=`${RAW_BASE}/stamps/${name}`;
+    const src=`${RAW_BASE}/stamps/${tab.id}/${name}`;
     const img=new Image(); img.crossOrigin="anonymous";
     img.onload=()=>{ imgCache[src]=img; pushHistory(elements); const el=defaultImage(src,img.width,img.height,elements.length); setElements(e=>[...e,el]); setSelected(el.id); };
     img.src=src+"?t="+Date.now();
@@ -443,7 +444,7 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
               {parts.map(name=>(
                 <button key={name} onClick={()=>{ addPart(name); setShowParts(false); }} style={{ background:C.cream, border:`1px solid ${C.grayLL}`, borderRadius:8, padding:6, cursor:"pointer" }}>
                   <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/10px 10px", borderRadius:4, marginBottom:4 }}>
-                    <img src={`${RAW_BASE}/stamps/${name}?t=${Date.now()}`} style={{ width:"100%", height:56, objectFit:"contain", display:"block" }} />
+                    <img src={`${RAW_BASE}/stamps/${tab.id}/${name}?t=${Date.now()}`} style={{ width:"100%", height:56, objectFit:"contain", display:"block" }} />
                   </div>
                   <p style={{ margin:0, fontSize:9, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name.replace(/\.[^.]+$/,"")}</p>
                 </button>
