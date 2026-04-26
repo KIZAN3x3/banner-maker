@@ -209,7 +209,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
       {/* ヘッダー行 */}
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
         {/* サムネイル */}
-        <img src={tab.sample+"?t="+Date.now()} onError={e=>e.target.style.display="none"}
+        <img src={tab.sample} onError={e=>e.target.style.display="none"}
           style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0 }} />
         <div style={{ flex:1, minWidth:0 }}>
           <p style={{ margin:0, fontSize:14, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tab.label}</p>
@@ -228,7 +228,13 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <input value={label} onChange={e=>setLabel(e.target.value)} style={IS} />
 
           <label style={LS}>① お手本画像を差し替え（任意）</label>
-          <DropZone preview={samplePrev||tab.sample} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="お手本画像をドロップ / タップして選択" small />
+          {!samplePrev && tab.sample && (
+            <div style={{ marginBottom:8 }}>
+              <p style={{ margin:"0 0 4px", fontSize:11, color:C.gray }}>現在の画像：</p>
+              <img src={tab.sample+"?t="+Date.now()} style={{ height:80, objectFit:"contain", borderRadius:6, border:`1px solid ${C.grayLL}` }} />
+            </div>
+          )}
+          <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しいお手本画像をドロップ / タップして選択" small />
 
           <label style={{ ...LS, marginTop:10 }}>② 背景画像を差し替え（任意）</label>
           <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="背景画像をドロップ / タップして選択" small />
