@@ -161,7 +161,7 @@ function TabManager() {
         </button>
       </div>
 
-      {showAdd && <AddTabForm onAdded={()=>{ setShowAdd(false); loadTabs(); }} />}
+      {showAdd && <AddTabForm onAdded={(newTab)=>{ setShowAdd(false); setTabs(prev=>[...prev, newTab]); }} />}
 
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {tabs?.map(t=>(
@@ -211,8 +211,8 @@ function AddTabForm({ onAdded }) {
       const tabsB64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedTabs, null, 2))));
       await uploadFile("public/tabs.json", tabsB64, `Add tab: ${label}`);
 
-      setStatus("done"); setMessage("✅ タブを追加しました！1〜2分後に反映されます。");
-      setTimeout(onAdded, 2000);
+      setStatus("done"); setMessage("✅ タブを追加しました！");
+      onAdded(newTab);
     } catch(e) { setStatus("error"); setMessage("エラー: "+e.message); }
   };
 
