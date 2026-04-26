@@ -10,6 +10,10 @@ fl.onload = () => {
   });
 };
 
+const GITHUB_OWNER = "KIZAN3x3";
+const GITHUB_REPO  = "banner-maker";
+const RAW_BASE     = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public`;
+
 const C = {
   g1:"#EB6100", g2:"#F18D00",
   ink:"#18120A", inkS:"#3D2E1E",
@@ -49,17 +53,25 @@ const defaultImage = (src, w, h, zIndex=0) => ({
 
 const imgCache = {};
 
+// ★修正：GitHub raw URLから直接取得
 async function fetchTabs() {
   try {
-    const res = await fetch(`/tabs.json?t=${Date.now()}`);
+    const res = await fetch(`${RAW_BASE}/tabs.json?t=${Date.now()}`);
     if (!res.ok) return [];
-    return await res.json();
+    const tabs = await res.json();
+    // bg/sampleのパスをGitHub raw URLに変換
+    return tabs.map(t => ({
+      ...t,
+      bg:     RAW_BASE + t.bg,
+      sample: RAW_BASE + t.sample,
+    }));
   } catch { return []; }
 }
 
+// ★修正：GitHub raw URLから直接取得
 async function fetchStamps() {
   try {
-    const res = await fetch(`/stamps/index.json?t=${Date.now()}`);
+    const res = await fetch(`${RAW_BASE}/stamps/index.json?t=${Date.now()}`);
     if (!res.ok) return [];
     return await res.json();
   } catch { return []; }
@@ -137,8 +149,9 @@ function MainApp() {
     if(!tab)return;
     setBgImg(null); setSampleImg(null);
     const ts=Date.now();
-    const bg=new Image(); bg.onload=()=>setBgImg(bg); bg.onerror=()=>{}; bg.src=tab.bg+"?t="+ts;
-    const sm=new Image(); sm.onload=()=>setSampleImg(sm); sm.src=tab.sample+"?t="+ts;
+    // bg/sampleはすでにフルURLなのでそのまま使う
+    const bg=new Image(); bg.crossOrigin="anonymous"; bg.onload=()=>setBgImg(bg); bg.onerror=()=>{}; bg.src=tab.bg+"?t="+ts;
+    const sm=new Image(); sm.crossOrigin="anonymous"; sm.onload=()=>setSampleImg(sm); sm.src=tab.sample+"?t="+ts;
   },[activeTab]);
 
   useEffect(()=>{
@@ -159,7 +172,7 @@ function MainApp() {
   };
 
   const addStamp = (name)=>{
-    const src = `/stamps/${name}`;
+    const src = `${RAW_BASE}/stamps/${name}`;
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload=()=>{
@@ -332,15 +345,13 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
   return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"12px 16px 40px" }}>
 
-      {/* お手本 */}
       {showSample&&sampleImg&&(
         <div style={{ marginBottom:12, borderRadius:10, overflow:"hidden", border:`1px solid ${C.grayL}` }}>
-          <p style={{ margin:0, padding:"6px 12px", fontSize:11, color:C.gray, background:C.white }}>📌 お手本バナー（参考）</p>
+          <p style={{ margin:0, padding:"6px 12px", fontSize:11, color:C.gray, background:C.white }}>📌 サンプルバナー（参考）</p>
           <img src={sampleImg.src} style={{ width:"50%", display:"block" }} />
         </div>
       )}
 
-      {/* Canvas */}
       <div style={{ borderRadius:10, overflow:"hidden", border:`2px solid ${selected?C.g1:C.grayL}`, boxShadow:`0 8px 32px ${C.g1}20`, transition:"border-color 0.2s" }}>
         <canvas ref={canvasRef} width={PW} height={PH}
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
@@ -352,7 +363,6 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
         {selected?"ドラッグで移動　ピンチで拡縮":"↓ レイヤーで要素を選んでください"}
       </p>
 
-      {/* ツールバー */}
       <div style={{ display:"flex", gap:8, marginTop:12, flexWrap:"wrap" }}>
         <button onClick={addText} style={TB(C.g1)}>＋ テキスト</button>
         <label style={TB("#4A90D9")}>
@@ -360,10 +370,9 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
           <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
         </label>
         <button onClick={()=>setShowStamps(v=>!v)} style={TB(showStamps?"#5B21B6":"#7C3AED")}>＋ スタンプ{stamps.length===0?" (未登録)":""}</button>
-        <button onClick={()=>setShowSample(v=>!v)} style={TB(showSample?"#555":"#888")}>{showSample?"お手本を隠す":"お手本を表示"}</button>
+        <button onClick={()=>setShowSample(v=>!v)} style={TB(showSample?"#555":"#888")}>{showSample?"サンプルを隠す":"サンプルを表示"}</button>
       </div>
 
-      {/* スタンプ一覧 */}
       {showStamps&&(
         <div style={{ marginTop:10, background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, padding:"12px", animation:"fadeUp 0.2s ease" }}>
           <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.inkS }}>スタンプを選んでください（タップで追加）</p>
@@ -374,7 +383,7 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
               {stamps.map(name=>(
                 <button key={name} onClick={()=>{ addStamp(name); setShowStamps(false); }} style={{ background:C.cream, border:`1px solid ${C.grayLL}`, borderRadius:8, padding:6, cursor:"pointer" }}>
                   <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/10px 10px", borderRadius:4, marginBottom:4 }}>
-                    <img src={`/stamps/${name}?t=${Date.now()}`} style={{ width:"100%", height:56, objectFit:"contain", display:"block" }} />
+                    <img src={`${RAW_BASE}/stamps/${name}?t=${Date.now()}`} style={{ width:"100%", height:56, objectFit:"contain", display:"block" }} />
                   </div>
                   <p style={{ margin:0, fontSize:9, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name.replace(/\.[^.]+$/,"")}</p>
                 </button>
@@ -384,7 +393,6 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
         </div>
       )}
 
-      {/* レイヤー＋編集パネル */}
       {elements.length>0&&(
         <div style={{ marginTop:12, background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
           <p style={{ margin:0, padding:"10px 14px", fontSize:12, fontWeight:700, color:C.inkS, borderBottom:`1px solid ${C.grayLL}`, background:C.cream }}>レイヤー（上が前面）　↑↓で並び替え</p>
@@ -532,7 +540,7 @@ function drawTextEl(ctx, el, r, isSelected) {
 function drawImageEl(ctx, el, r, isSelected) {
   if(!el.src)return;
   let img=imgCache[el.src];
-  if(!img){ img=new Image(); img.src=el.src; if(img.complete)imgCache[el.src]=img; }
+  if(!img){ img=new Image(); img.crossOrigin="anonymous"; img.src=el.src; if(img.complete)imgCache[el.src]=img; }
   if(!img.complete)return;
   const w=el.naturalW*el.scale*r, h=el.naturalH*el.scale*r;
   ctx.save(); ctx.translate(el.x*r,el.y*r);
