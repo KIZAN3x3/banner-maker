@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 
-const ADMIN_PASSWORD = "123123";
-const GITHUB_TOKEN   = import.meta.env.VITE_GITHUB_TOKEN;
-const GITHUB_OWNER   = "KIZAN3x3";
-const GITHUB_REPO    = "banner-maker";
-const GITHUB_BRANCH  = "main";
-const BASE_URL       = "https://banner-maker-iota.vercel.app";
+const ADMIN_PASSWORD     = "123123";
+const GITHUB_TOKEN       = import.meta.env.VITE_GITHUB_TOKEN;
+const GITHUB_OWNER       = "KIZAN3x3";
+const GITHUB_REPO        = "banner-maker";
+const GITHUB_BRANCH      = "main";
 const VERCEL_DEPLOY_HOOK = "https://api.vercel.com/v1/integrations/deploy/prj_J4dUU6AAwHjkqY6EDQIdwzxRKPsP/tjrYEm5kD5";
 
 const C = {
@@ -59,11 +58,6 @@ function jsonToB64(obj) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
 }
 
-async function triggerDeploy() {
-  try { await fetch(VERCEL_DEPLOY_HOOK, { method:"POST" }); } catch {}
-}
-
-// tabs.jsonをGitHub APIから取得（キャッシュなし）
 async function loadTabsFromGH() {
   const data = await ghGet("public/tabs.json");
   if (!data?.content) return [];
@@ -73,6 +67,10 @@ async function loadTabsFromGH() {
     for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
     return JSON.parse(new TextDecoder("utf-8").decode(bytes));
   } catch { return []; }
+}
+
+async function triggerDeploy() {
+  try { await fetch(VERCEL_DEPLOY_HOOK, { method:"POST" }); } catch {}
 }
 
 // ── App ───────────────────────────────────────────────────
@@ -123,7 +121,7 @@ export default function Admin() {
         {page==="stamps" && <StampManager />}
       </div>
 
-      <style>{`*{box-sizing:border-box} @keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}} input::placeholder{color:#C0B8B0} textarea::placeholder{color:#C0B8B0}`}</style>
+      <style>{`*{box-sizing:border-box} @keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}} input::placeholder{color:#C0B8B0}`}</style>
     </div>
   );
 }
@@ -140,26 +138,15 @@ function TabManager() {
     setTabs(data);
   };
 
-  const handleAdd = (newTab) => {
-    setTabs(prev=>[...(prev||[]), newTab]);
-    setShowAdd(false);
-  };
-
   const handleDelete = async (tab) => {
     if (!confirm(`「${tab.label}」を削除しますか？\n背景画像・お手本画像も削除されます。`)) return;
-    // tabs.json更新
     const current = await loadTabsFromGH();
     const updated  = current.filter(t=>t.id!==tab.id);
     await ghPut("public/tabs.json", jsonToB64(updated), `Delete tab: ${tab.label}`);
-    // 画像削除
     try { await ghDelete(`public/${tab.bg.replace(/^\//,"")}`,     `Delete bg: ${tab.id}`); } catch {}
     try { await ghDelete(`public/${tab.sample.replace(/^\//,"")}`, `Delete sample: ${tab.id}`); } catch {}
     setTabs(updated);
     await triggerDeploy();
-  };
-
-  const handleUpdate = (updatedTab) => {
-    setTabs(prev=>prev.map(t=>t.id===updatedTab.id?updatedTab:t));
   };
 
   if (tabs===null) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32}/></div>;
@@ -173,112 +160,22 @@ function TabManager() {
         </button>
       </div>
 
-      {showAdd && <AddTabForm onAdded={handleAdd} />}
+      {showAdd && <AddTabForm onAdded={(newTab)=>{ setTabs(prev=>[...(prev||[]),newTab]); setShowAdd(false); }} />}
 
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {tabs.map(t=>(
-          <TabCard key={t.id} tab={t} onDelete={()=>handleDelete(t)} onUpdate={handleUpdate} />
+          <div key={t.id} style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:0, fontSize:14, fontWeight:700 }}>{t.label}</p>
+              <p style={{ margin:"2px 0 0", fontSize:11, color:C.gray }}>
+                {SNS_SIZES.find(s=>s.w===t.w&&s.h===t.h)?.label||""}　{t.w}×{t.h}px
+              </p>
+            </div>
+            <button onClick={()=>handleDelete(t)} style={{ padding:"6px 12px", background:"none", border:`1px solid ${C.red}`, borderRadius:8, color:C.red, fontSize:12, cursor:"pointer" }}>削除</button>
+          </div>
         ))}
         {tabs.length===0&&!showAdd&&<p style={{ textAlign:"center", color:C.gray, padding:20 }}>タブがありません</p>}
       </div>
-    </div>
-  );
-}
-
-// ── タブカード ────────────────────────────────────────────
-function TabCard({ tab, onDelete, onUpdate }) {
-  const [open,       setOpen]       = useState(false);
-  const [label,      setLabel]      = useState(tab.label);
-  const [sampleFile, setSampleFile] = useState(null);
-  const [samplePrev, setSamplePrev] = useState(null);
-  const [bgFile,     setBgFile]     = useState(null);
-  const [bgPrev,     setBgPrev]     = useState(null);
-  const [status,     setStatus]     = useState("");
-  const [msg,        setMsg]        = useState("");
-  const size = SNS_SIZES.find(s=>s.w===tab.w&&s.h===tab.h)||SNS_SIZES[0];
-
-  // Vercelから画像URLを取得（絶対URL）
-  const sampleUrl = `${BASE_URL}${tab.sample}`;
-  const bgUrl     = `${BASE_URL}${tab.bg}`;
-
-  const handleUpdate = async () => {
-    if (!label.trim()) { setMsg("タブ名を入力してください"); return; }
-    setStatus("uploading"); setMsg("更新中...");
-    try {
-      if (sampleFile) {
-        const b64 = await toBase64(sampleFile);
-        await ghPut(`public/${tab.sample.replace(/^\//,"")}`, b64, `Update sample: ${tab.label}`);
-      }
-      if (bgFile) {
-        const b64 = await toBase64(bgFile);
-        await ghPut(`public/${tab.bg.replace(/^\//,"")}`,     b64, `Update bg: ${tab.label}`);
-      }
-      const updatedTab = { ...tab, label:label.trim() };
-      const current    = await loadTabsFromGH();
-      const newTabs    = current.map(t=>t.id===tab.id?updatedTab:t);
-      await ghPut("public/tabs.json", jsonToB64(newTabs), `Rename tab: ${label}`);
-      await triggerDeploy();
-      setStatus("done"); setMsg("✅ 更新しました！Vercelに自動デプロイ中...");
-      onUpdate(updatedTab);
-    } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
-  };
-
-  return (
-    <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
-      {/* ヘッダー */}
-      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
-        <img src={sampleUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
-          style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0, background:C.grayLL }} />
-        <div style={{ flex:1, minWidth:0 }}>
-          <p style={{ margin:0, fontSize:14, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tab.label}</p>
-          <p style={{ margin:"2px 0 0", fontSize:10, color:C.gray }}>{size.label}　{tab.w}×{tab.h}px</p>
-        </div>
-        <button onClick={()=>{ setOpen(v=>!v); setMsg(""); setStatus(""); }} style={{ padding:"6px 12px", background:C.cream, border:`1px solid ${C.grayL}`, borderRadius:8, color:C.ink, fontSize:12, cursor:"pointer", flexShrink:0 }}>
-          {open?"閉じる":"編集"}
-        </button>
-        <button onClick={onDelete} style={{ padding:"6px 10px", background:"none", border:`1px solid ${C.red}`, borderRadius:8, color:C.red, fontSize:12, cursor:"pointer", flexShrink:0 }}>削除</button>
-      </div>
-
-      {/* 編集パネル */}
-      {open&&(
-        <div style={{ padding:"16px", borderTop:`1px solid ${C.grayLL}`, background:C.cream, animation:"fadeUp 0.2s ease" }}>
-          {/* タブ名 */}
-          <label style={LS}>タブ名</label>
-          <input value={label} onChange={e=>setLabel(e.target.value)} style={IS} />
-
-          {/* お手本画像 */}
-          <label style={LS}>① お手本画像を差し替え（任意）</label>
-          <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
-            <div style={{ flexShrink:0 }}>
-              <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={sampleUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
-                style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
-            </div>
-            <div style={{ flex:1 }}>
-              <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" small />
-            </div>
-          </div>
-
-          {/* 背景画像 */}
-          <label style={LS}>② 背景画像を差し替え（任意）</label>
-          <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
-            <div style={{ flexShrink:0 }}>
-              <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={bgUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
-                style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
-            </div>
-            <div style={{ flex:1 }}>
-              <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="新しい画像をドロップまたはタップして選択" small />
-            </div>
-          </div>
-
-          {msg&&<p style={{ margin:"0 0 10px", fontSize:12, color:status==="done"?C.green:status==="error"?C.red:C.g1 }}>{msg}</p>}
-
-          <button onClick={handleUpdate} disabled={status==="uploading"} style={{ width:"100%", padding:"12px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:14, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            {status==="uploading"?<><Spinner size={14} color={C.white}/>更新中...</>:"更新する"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -311,7 +208,7 @@ function AddTabForm({ onAdded }) {
       const newTab = { id:tabId, label:label.trim(), bg:`/${bgName}`, sample:`/${smName}`, w:size.w, h:size.h };
       await ghPut("public/tabs.json", jsonToB64([...currentTabs, newTab]), `Add tab: ${label}`);
       await triggerDeploy();
-      setStatus("done"); setMsg("✅ 追加しました！Vercelに自動デプロイ中...");
+      setStatus("done"); setMsg("✅ 追加しました！約1分後にアプリに反映されます。");
       onAdded(newTab);
     } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
   };
@@ -382,7 +279,6 @@ function StampManager() {
     }
     const updated = [...stamps, ...newNames];
     setStamps(updated);
-    // index.json更新
     await ghPut("public/stamps/index.json", btoa(unescape(encodeURIComponent(JSON.stringify(updated)))), "Update stamps index");
     await triggerDeploy();
     setUploading(false);
@@ -418,7 +314,7 @@ function StampManager() {
           {stamps.map(name=>(
             <div key={name} style={{ background:C.white, borderRadius:10, border:`1px solid ${C.grayLL}`, overflow:"hidden", textAlign:"center" }}>
               <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/14px 14px", padding:8 }}>
-                <img src={`${BASE_URL}/stamps/${name}`} alt={name} style={{ width:"100%", maxHeight:80, objectFit:"contain", display:"block", margin:"0 auto" }} />
+                <img src={`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public/stamps/${name}`} alt={name} style={{ width:"100%", maxHeight:80, objectFit:"contain", display:"block", margin:"0 auto" }} />
               </div>
               <div style={{ padding:"6px 8px" }}>
                 <p style={{ margin:0, fontSize:10, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</p>
@@ -433,7 +329,7 @@ function StampManager() {
 }
 
 // ── DropZone ──────────────────────────────────────────────
-function DropZone({ preview, onFile, label, small }) {
+function DropZone({ preview, onFile, label }) {
   const [drag, setDrag] = useState(false);
   const ref = useRef();
   return (
@@ -442,11 +338,11 @@ function DropZone({ preview, onFile, label, small }) {
       onDragLeave={()=>setDrag(false)}
       onDrop={e=>{ e.preventDefault(); setDrag(false); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith("image/"))onFile(f); }}
       onClick={()=>ref.current.click()}
-      style={{ border:`2px dashed ${drag?C.g1:C.grayL}`, borderRadius:10, padding:small?10:18, background:drag?`${C.g1}08`:C.cream, cursor:"pointer", textAlign:"center", transition:"all 0.2s", marginBottom:4 }}
+      style={{ border:`2px dashed ${drag?C.g1:C.grayL}`, borderRadius:10, padding:18, background:drag?`${C.g1}08`:C.cream, cursor:"pointer", textAlign:"center", transition:"all 0.2s", marginBottom:4 }}
     >
       {preview
-        ? <img src={preview} style={{ maxWidth:"100%", maxHeight:small?80:120, objectFit:"contain", borderRadius:6 }} />
-        : <p style={{ margin:0, fontSize:12, color:C.gray, whiteSpace:"pre-line" }}>{label}</p>
+        ? <img src={preview} style={{ maxWidth:"100%", maxHeight:120, objectFit:"contain", borderRadius:6 }} />
+        : <p style={{ margin:0, fontSize:12, color:C.gray }}>{label}</p>
       }
       <input ref={ref} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0])onFile(e.target.files[0]); e.target.value=""; }} />
     </div>
