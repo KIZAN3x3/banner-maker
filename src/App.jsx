@@ -23,18 +23,18 @@ const C = {
 };
 
 const FONTS = [
-  { id:"noto_sans",   name:"ゴシック（標準）",  family:"'Noto Sans JP'",      weight:"700" },
-  { id:"noto_sans_bk",name:"ゴシック（太字）",  family:"'Noto Sans JP'",      weight:"900" },
-  { id:"noto_serif",  name:"明朝（標準）",      family:"'Noto Serif JP'",     weight:"700" },
-  { id:"mplus",       name:"ゴシック（丸め）",  family:"'M PLUS 1p'",         weight:"700" },
-  { id:"mplus_round", name:"丸ゴシック",        family:"'M PLUS Rounded 1c'", weight:"700" },
-  { id:"shippori",    name:"明朝（上品）",      family:"'Shippori Mincho'",   weight:"700" },
-  { id:"zen_mincho",  name:"明朝（格調）",      family:"'Zen Old Mincho'",    weight:"700" },
+  { id:"noto_sans",    name:"ゴシック（標準）", family:"'Noto Sans JP'",      weight:"700" },
+  { id:"noto_sans_bk", name:"ゴシック（太字）", family:"'Noto Sans JP'",      weight:"900" },
+  { id:"noto_serif",   name:"明朝（標準）",     family:"'Noto Serif JP'",     weight:"700" },
+  { id:"mplus",        name:"ゴシック（丸め）", family:"'M PLUS 1p'",         weight:"700" },
+  { id:"mplus_round",  name:"丸ゴシック",       family:"'M PLUS Rounded 1c'", weight:"700" },
+  { id:"shippori",     name:"明朝（上品）",     family:"'Shippori Mincho'",   weight:"700" },
+  { id:"zen_mincho",   name:"明朝（格調）",     family:"'Zen Old Mincho'",    weight:"700" },
 ];
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
-const PASSWORD = "123";
-const SS_KEY   = "banner_maker_v5";
+const PASSWORD   = "123";
+const SS_KEY     = "banner_maker_v5";
 
 const uid = () => Math.random().toString(36).slice(2,9);
 
@@ -43,33 +43,26 @@ const defaultText = (zIndex=0) => ({
   font:FONTS[0].id, size:"medium", color:"#FFFFFF", vertical:false,
   shadow:false, outline:false, outlineColor:"#000000", outlineWidth:4,
   glow:false, glowColor:"#FF6600",
-  x:540, y:960, scale:1, zIndex,
+  x:540, y:960, scale:1, rotate:0, zIndex,
 });
 
 const defaultImage = (src, w, h, zIndex=0) => ({
   id:uid(), type:"image", src, naturalW:w, naturalH:h,
-  x:540, y:960, scale:1, zIndex,
+  x:540, y:960, scale:1, rotate:0, zIndex,
 });
 
 const imgCache = {};
 
-// ★修正：GitHub raw URLから直接取得
 async function fetchTabs() {
   try {
     const res = await fetch(`${RAW_BASE}/tabs.json?t=${Date.now()}`);
     if (!res.ok) return [];
     const tabs = await res.json();
-    // bg/sampleのパスをGitHub raw URLに変換
-    return tabs.map(t => ({
-      ...t,
-      bg:     RAW_BASE + t.bg,
-      sample: RAW_BASE + t.sample,
-    }));
+    return tabs.map(t => ({ ...t, bg: RAW_BASE + t.bg, sample: RAW_BASE + t.sample }));
   } catch { return []; }
 }
 
-// ★修正：GitHub raw URLから直接取得
-async function fetchStamps() {
+async function fetchParts() {
   try {
     const res = await fetch(`${RAW_BASE}/stamps/index.json?t=${Date.now()}`);
     if (!res.ok) return [];
@@ -99,8 +92,7 @@ function PasswordScreen({ onAuth }) {
           <p style={{ margin:"6px 0 0", fontSize:12, color:C.gray }}>パスワードを入力してください</p>
         </div>
         <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="パスワード"
-          style={{ width:"100%", padding:"13px 16px", background:err?"#3D0A0A":"#2A1E12", border:`1.5px solid ${err?"#CC3333":C.grayL}`, borderRadius:10, color:C.white, fontSize:16, fontFamily:"'Noto Sans JP',sans-serif", outline:"none", boxSizing:"border-box" }}
-        />
+          style={{ width:"100%", padding:"13px 16px", background:err?"#3D0A0A":"#2A1E12", border:`1.5px solid ${err?"#CC3333":C.grayL}`, borderRadius:10, color:C.white, fontSize:16, fontFamily:"'Noto Sans JP',sans-serif", outline:"none", boxSizing:"border-box" }} />
         {err&&<p style={{ color:"#CC3333", fontSize:12, margin:"6px 0 0", textAlign:"center" }}>パスワードが違います</p>}
         <button onClick={submit} style={{ width:"100%", marginTop:14, padding:"14px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:12, color:C.white, fontSize:15, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>ログイン</button>
       </div>
@@ -121,7 +113,7 @@ function MainApp() {
   const [saves,      setSaves]      = useState(()=>{ try{return JSON.parse(localStorage.getItem(SS_KEY)||"{}");}catch{return {};} });
   const [bgImg,      setBgImg]      = useState(null);
   const [sampleImg,  setSampleImg]  = useState(null);
-  const [stamps,     setStamps]     = useState([]);
+  const [parts,      setParts]      = useState([]);
   const [downloadUrl,setDownloadUrl]= useState(null);
   const [generating, setGenerating] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
@@ -129,12 +121,12 @@ function MainApp() {
 
   const previewRef = useRef(null);
 
-  const tab  = tabs.find(t=>t.id===activeTab);
-  const CW_  = tab?.w || 1080;
-  const CH_  = tab?.h || 1920;
-  const PW   = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
-  const PH   = Math.round(PW*CH_/CW_);
-  const R    = PW/CW_;
+  const tab = tabs.find(t=>t.id===activeTab);
+  const CW_ = tab?.w || 1080;
+  const CH_ = tab?.h || 1920;
+  const PW  = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
+  const PH  = Math.round(PW*CH_/CW_);
+  const R   = PW/CW_;
 
   useEffect(()=>{
     document.fonts.ready.then(()=>
@@ -142,14 +134,13 @@ function MainApp() {
         .then(()=>setFontsReady(true)).catch(()=>setFontsReady(true))
     );
     fetchTabs().then(loaded=>{ setTabs(loaded); if(loaded.length>0)setActiveTab(loaded[0].id); setTabsLoaded(true); });
-    fetchStamps().then(names=>setStamps(names));
+    fetchParts().then(names=>setParts(names));
   },[]);
 
   useEffect(()=>{
     if(!tab)return;
     setBgImg(null); setSampleImg(null);
     const ts=Date.now();
-    // bg/sampleはすでにフルURLなのでそのまま使う
     const bg=new Image(); bg.crossOrigin="anonymous"; bg.onload=()=>setBgImg(bg); bg.onerror=()=>{}; bg.src=tab.bg+"?t="+ts;
     const sm=new Image(); sm.crossOrigin="anonymous"; sm.onload=()=>setSampleImg(sm); sm.src=tab.sample+"?t="+ts;
   },[activeTab]);
@@ -171,22 +162,15 @@ function MainApp() {
     reader.readAsDataURL(file);
   };
 
-  const addStamp = (name)=>{
-    const src = `${RAW_BASE}/stamps/${name}`;
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload=()=>{
-      imgCache[src] = img;
-      pushHistory(elements);
-      const el = defaultImage(src, img.width, img.height, elements.length);
-      setElements(e=>[...e,el]);
-      setSelected(el.id);
-    };
-    img.src = src + "?t=" + Date.now();
+  const addPart = (name)=>{
+    const src=`${RAW_BASE}/stamps/${name}`;
+    const img=new Image(); img.crossOrigin="anonymous";
+    img.onload=()=>{ imgCache[src]=img; pushHistory(elements); const el=defaultImage(src,img.width,img.height,elements.length); setElements(e=>[...e,el]); setSelected(el.id); };
+    img.src=src+"?t="+Date.now();
   };
 
-  const updateEl = (id,patch)=>setElements(e=>e.map(el=>el.id===id?{...el,...patch}:el));
-  const deleteEl = (id)=>{ pushHistory(elements); setElements(e=>e.filter(el=>el.id!==id)); setSelected(null); setEditing(null); };
+  const updateEl  = (id,patch)=>setElements(e=>e.map(el=>el.id===id?{...el,...patch}:el));
+  const deleteEl  = (id)=>{ pushHistory(elements); setElements(e=>e.filter(el=>el.id!==id)); setSelected(null); setEditing(null); };
   const moveLayer = (id,dir)=>{
     pushHistory(elements);
     setElements(e=>{ const arr=[...e].sort((a,b)=>a.zIndex-b.zIndex); const idx=arr.findIndex(el=>el.id===id);
@@ -195,12 +179,22 @@ function MainApp() {
       return arr; });
   };
 
+  // ★保存名を編集可能に
   const saveWork = ()=>{
     const key=`${activeTab}_${Date.now()}`;
-    const work={ id:key, tab:activeTab, name:`${tab?.label||""} ${new Date().toLocaleDateString("ja-JP")}`, elements:JSON.parse(JSON.stringify(elements)), createdAt:Date.now() };
+    const defaultName=`${tab?.label||""} ${new Date().toLocaleDateString("ja-JP")}`;
+    const name=window.prompt("保存名を入力してください", defaultName);
+    if(name===null)return; // キャンセル
+    const work={ id:key, tab:activeTab, name:name||defaultName, elements:JSON.parse(JSON.stringify(elements)), createdAt:Date.now() };
     const updated={...saves,[key]:work}; setSaves(updated); localStorage.setItem(SS_KEY,JSON.stringify(updated)); alert("保存しました！");
   };
-  const loadWork = (work)=>{ setElements(work.elements); setSelected(null); setEditing(null); setHistory([]); setScreen("preview"); };
+  const renameWork = (id)=>{
+    const work=saves[id]; if(!work)return;
+    const name=window.prompt("新しい名前を入力してください", work.name);
+    if(name===null||!name.trim())return;
+    const updated={...saves,[id]:{...work,name:name.trim()}}; setSaves(updated); localStorage.setItem(SS_KEY,JSON.stringify(updated));
+  };
+  const loadWork   = (work)=>{ setElements(work.elements); setSelected(null); setEditing(null); setHistory([]); setScreen("preview"); };
   const deleteWork = (id)=>{ const u={...saves}; delete u[id]; setSaves(u); localStorage.setItem(SS_KEY,JSON.stringify(u)); };
 
   const generate = async()=>{
@@ -215,7 +209,7 @@ function MainApp() {
 
   if (!tabsLoaded) return (
     <div style={{ minHeight:"100vh", background:C.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans JP',sans-serif" }}>
-      <div style={{ textAlign:"center" }}><Spinner size={40} /><p style={{ marginTop:16, color:C.gray }}>読み込み中...</p></div>
+      <div style={{ textAlign:"center" }}><Spinner size={40}/><p style={{ marginTop:16, color:C.gray }}>読み込み中...</p></div>
     </div>
   );
 
@@ -230,20 +224,27 @@ function MainApp() {
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:C.cream, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, paddingBottom:60 }}>
-      <AppHeader screen={screen} onBack={screen==="preview"?()=>setScreen("home"):screen==="done"?()=>setScreen("preview"):null} onSave={screen==="preview"?saveWork:null} onUndo={screen==="preview"&&history.length>0?undo:null} />
+    // ★右側にスクロールバー用のレイアウト
+    <div style={{ display:"flex", minHeight:"100vh", background:C.cream, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink }}>
+      {/* メインコンテンツ */}
+      <div style={{ flex:1, overflowY:"auto", paddingBottom:60 }} id="main-scroll">
+        <AppHeader screen={screen} onBack={screen==="preview"?()=>setScreen("home"):screen==="done"?()=>setScreen("preview"):null} onSave={screen==="preview"?saveWork:null} onUndo={screen==="preview"&&history.length>0?undo:null} />
 
-      {screen==="home"&&(
-        <div style={{ background:C.white, borderBottom:`1px solid ${C.grayLL}`, display:"flex", overflowX:"auto", position:"sticky", top:56, zIndex:100, WebkitOverflowScrolling:"touch" }}>
-          {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ flexShrink:0, padding:"11px 14px", background:"none", border:"none", borderBottom:`3px solid ${activeTab===t.id?C.g1:"transparent"}`, color:activeTab===t.id?C.g1:C.gray, fontSize:12, fontWeight:activeTab===t.id?700:400, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>{t.label}</button>
-          ))}
-        </div>
-      )}
+        {screen==="home"&&(
+          <div style={{ background:C.white, borderBottom:`1px solid ${C.grayLL}`, display:"flex", overflowX:"auto", position:"sticky", top:56, zIndex:100, WebkitOverflowScrolling:"touch" }}>
+            {tabs.map(t=>(
+              <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ flexShrink:0, padding:"11px 14px", background:"none", border:"none", borderBottom:`3px solid ${activeTab===t.id?C.g1:"transparent"}`, color:activeTab===t.id?C.g1:C.gray, fontSize:12, fontWeight:activeTab===t.id?700:400, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>{t.label}</button>
+            ))}
+          </div>
+        )}
 
-      {screen==="home"&&<HomeScreen tab={tab} tabSaves={tabSaves} onNew={()=>{setElements([]);setSelected(null);setEditing(null);setHistory([]);setScreen("preview");}} onLoad={loadWork} onDelete={deleteWork} />}
-      {screen==="preview"&&<PreviewScreen elements={elements} setElements={setElements} selected={selected} setSelected={setSelected} editing={editing} setEditing={setEditing} bgImg={bgImg} sampleImg={sampleImg} showSample={showSample} setShowSample={setShowSample} stamps={stamps} canvasRef={previewRef} PW={PW} PH={PH} R={R} addText={addText} addImage={addImage} addStamp={addStamp} updateEl={updateEl} deleteEl={deleteEl} moveLayer={moveLayer} pushHistory={pushHistory} onGenerate={generate} generating={generating} />}
-      {screen==="done"&&<DoneScreen downloadUrl={downloadUrl} onReset={reset} onBack={()=>setScreen("preview")} />}
+        {screen==="home"    && <HomeScreen tab={tab} tabSaves={tabSaves} onNew={()=>{setElements([]);setSelected(null);setEditing(null);setHistory([]);setScreen("preview");}} onLoad={loadWork} onDelete={deleteWork} onRename={renameWork} />}
+        {screen==="preview" && <PreviewScreen elements={elements} setElements={setElements} selected={selected} setSelected={setSelected} editing={editing} setEditing={setEditing} bgImg={bgImg} sampleImg={sampleImg} showSample={showSample} setShowSample={setShowSample} parts={parts} canvasRef={previewRef} PW={PW} PH={PH} R={R} addText={addText} addImage={addImage} addPart={addPart} updateEl={updateEl} deleteEl={deleteEl} moveLayer={moveLayer} pushHistory={pushHistory} onGenerate={generate} generating={generating} />}
+        {screen==="done"    && <DoneScreen downloadUrl={downloadUrl} onReset={reset} onBack={()=>setScreen("preview")} />}
+      </div>
+
+      {/* ★右側スクロールバー */}
+      <ScrollBar targetId="main-scroll" />
 
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -251,11 +252,67 @@ function MainApp() {
         *{box-sizing:border-box}
         input::placeholder{color:#C0B8B0}
         textarea::placeholder{color:#C0B8B0}
-        ::-webkit-scrollbar{width:8px}
-        ::-webkit-scrollbar-track{background:#E8E0D8;border-radius:4px}
-        ::-webkit-scrollbar-thumb{background:#EB6100;border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:#C4520E}
+        #main-scroll::-webkit-scrollbar{display:none}
+        #main-scroll{scrollbar-width:none}
       `}</style>
+    </div>
+  );
+}
+
+// ★カスタムスクロールバー
+function ScrollBar({ targetId }) {
+  const trackRef = useRef(null);
+  const thumbRef = useRef(null);
+  const dragging = useRef(false);
+  const startY   = useRef(0);
+  const startTop = useRef(0);
+
+  useEffect(()=>{
+    const el = document.getElementById(targetId);
+    if(!el) return;
+    const update = ()=>{
+      const thumb = thumbRef.current; if(!thumb)return;
+      const ratio = el.scrollTop / (el.scrollHeight - el.clientHeight || 1);
+      const trackH = trackRef.current?.clientHeight || 0;
+      const thumbH = Math.max(40, trackH * el.clientHeight / (el.scrollHeight||1));
+      thumb.style.height = thumbH+"px";
+      thumb.style.top    = (ratio*(trackH-thumbH))+"px";
+      thumb.style.opacity = el.scrollHeight > el.clientHeight ? "1" : "0";
+    };
+    el.addEventListener("scroll", update);
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    update();
+    return ()=>{ el.removeEventListener("scroll",update); ro.disconnect(); };
+  },[targetId]);
+
+  const onMouseDown = (e)=>{
+    dragging.current=true;
+    startY.current=e.clientY;
+    startTop.current=parseFloat(thumbRef.current?.style.top||0);
+    e.preventDefault();
+  };
+  useEffect(()=>{
+    const onMove=(e)=>{
+      if(!dragging.current)return;
+      const el=document.getElementById(targetId); if(!el)return;
+      const trackH=trackRef.current?.clientHeight||0;
+      const thumbH=parseFloat(thumbRef.current?.style.height||40);
+      const dy=e.clientY-startY.current;
+      const newTop=Math.min(Math.max(0,startTop.current+dy), trackH-thumbH);
+      const ratio=newTop/(trackH-thumbH||1);
+      el.scrollTop=ratio*(el.scrollHeight-el.clientHeight);
+    };
+    const onUp=()=>{ dragging.current=false; };
+    window.addEventListener("mousemove",onMove);
+    window.addEventListener("mouseup",onUp);
+    return()=>{ window.removeEventListener("mousemove",onMove); window.removeEventListener("mouseup",onUp); };
+  },[targetId]);
+
+  return (
+    <div ref={trackRef} style={{ width:10, position:"sticky", top:0, height:"100vh", background:"rgba(0,0,0,0.06)", flexShrink:0, borderRadius:5, margin:"4px 4px 4px 0" }}>
+      <div ref={thumbRef} onMouseDown={onMouseDown}
+        style={{ position:"absolute", left:1, width:8, background:C.g1, borderRadius:4, cursor:"pointer", transition:"opacity 0.2s", opacity:0, minHeight:40 }} />
     </div>
   );
 }
@@ -276,7 +333,8 @@ function AppHeader({ screen, onBack, onSave, onUndo }) {
   );
 }
 
-function HomeScreen({ tab, tabSaves, onNew, onLoad, onDelete }) {
+// ★バナー名編集ボタン追加
+function HomeScreen({ tab, tabSaves, onNew, onLoad, onDelete, onRename }) {
   return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"20px 16px 40px" }}>
       <button onClick={onNew} style={{ width:"100%", padding:"18px", background:`linear-gradient(135deg,${C.g1} 7%,${C.g2} 97%)`, border:"none", borderRadius:14, color:C.white, fontSize:16, fontWeight:700, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer", boxShadow:`0 4px 20px ${C.g1}45`, marginBottom:24 }}>＋ 新規作成</button>
@@ -286,12 +344,16 @@ function HomeScreen({ tab, tabSaves, onNew, onLoad, onDelete }) {
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             {tabSaves.map(work=>(
               <div key={work.id} style={{ background:C.white, borderRadius:12, padding:"14px 16px", border:`1px solid ${C.grayLL}`, display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ flex:1 }}>
-                  <p style={{ margin:0, fontSize:14, fontWeight:700 }}>{work.name}</p>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <p style={{ margin:0, fontSize:14, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{work.name}</p>
+                    {/* ★名前編集ボタン */}
+                    <button onClick={()=>onRename(work.id)} style={{ flexShrink:0, padding:"2px 8px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:6, color:C.gray, fontSize:10, cursor:"pointer" }}>✏️</button>
+                  </div>
                   <p style={{ margin:"3px 0 0", fontSize:11, color:C.gray }}>{work.elements.length}個の要素</p>
                 </div>
-                <button onClick={()=>onLoad(work)} style={{ padding:"8px 16px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:8, color:C.white, fontSize:12, fontWeight:700, cursor:"pointer" }}>編集</button>
-                <button onClick={()=>{if(confirm("削除しますか？"))onDelete(work.id);}} style={{ padding:"8px 12px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:8, color:C.gray, fontSize:12, cursor:"pointer" }}>削除</button>
+                <button onClick={()=>onLoad(work)} style={{ padding:"8px 16px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:8, color:C.white, fontSize:12, fontWeight:700, cursor:"pointer", flexShrink:0 }}>編集</button>
+                <button onClick={()=>{if(confirm("削除しますか？"))onDelete(work.id);}} style={{ padding:"8px 12px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:8, color:C.gray, fontSize:12, cursor:"pointer", flexShrink:0 }}>削除</button>
               </div>
             ))}
           </div>
@@ -301,11 +363,11 @@ function HomeScreen({ tab, tabSaves, onNew, onLoad, onDelete }) {
   );
 }
 
-function PreviewScreen({ elements, setElements, selected, setSelected, editing, setEditing, bgImg, sampleImg, showSample, setShowSample, stamps, canvasRef, PW, PH, R, addText, addImage, addStamp, updateEl, deleteEl, moveLayer, pushHistory, onGenerate, generating }) {
-  const dragging   = useRef(null);
-  const pinchRef   = useRef({ lastDist:null });
-  const imgInputRef= useRef();
-  const [showStamps,setShowStamps] = useState(false);
+function PreviewScreen({ elements, setElements, selected, setSelected, editing, setEditing, bgImg, sampleImg, showSample, setShowSample, parts, canvasRef, PW, PH, R, addText, addImage, addPart, updateEl, deleteEl, moveLayer, pushHistory, onGenerate, generating }) {
+  const dragging    = useRef(null);
+  const pinchRef    = useRef({ lastDist:null });
+  const imgInputRef = useRef();
+  const [showParts, setShowParts] = useState(false);
 
   const getXY = (cx,cy)=>{ if(!canvasRef.current)return{x:0,y:0}; const rect=canvasRef.current.getBoundingClientRect(); return{x:(cx-rect.left)/R,y:(cy-rect.top)/R}; };
 
@@ -344,7 +406,6 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
 
   return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"12px 16px 40px" }}>
-
       {showSample&&sampleImg&&(
         <div style={{ marginBottom:12, borderRadius:10, overflow:"hidden", border:`1px solid ${C.grayL}` }}>
           <p style={{ margin:0, padding:"6px 12px", fontSize:11, color:C.gray, background:C.white }}>📌 サンプルバナー（参考）</p>
@@ -356,8 +417,7 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
         <canvas ref={canvasRef} width={PW} height={PH}
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-          style={{ display:"block", cursor:selected?"grab":"default", touchAction:"none", userSelect:"none" }}
-        />
+          style={{ display:"block", cursor:selected?"grab":"default", touchAction:"none", userSelect:"none" }} />
       </div>
       <p style={{ textAlign:"center", fontSize:10, color:C.gray, marginTop:5 }}>
         {selected?"ドラッグで移動　ピンチで拡縮":"↓ レイヤーで要素を選んでください"}
@@ -369,19 +429,19 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
           ＋ 画像
           <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
         </label>
-        <button onClick={()=>setShowStamps(v=>!v)} style={TB(showStamps?"#5B21B6":"#7C3AED")}>＋ スタンプ{stamps.length===0?" (未登録)":""}</button>
+        <button onClick={()=>setShowParts(v=>!v)} style={TB(showParts?"#5B21B6":"#7C3AED")}>＋ パーツ{parts.length===0?" (未登録)":""}</button>
         <button onClick={()=>setShowSample(v=>!v)} style={TB(showSample?"#555":"#888")}>{showSample?"サンプルを隠す":"サンプルを表示"}</button>
       </div>
 
-      {showStamps&&(
+      {showParts&&(
         <div style={{ marginTop:10, background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, padding:"12px", animation:"fadeUp 0.2s ease" }}>
-          <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.inkS }}>スタンプを選んでください（タップで追加）</p>
-          {stamps.length===0 ? (
-            <p style={{ fontSize:12, color:C.gray, textAlign:"center", padding:"10px 0" }}>スタンプが登録されていません<br/>管理者ページから追加できます</p>
+          <p style={{ margin:"0 0 10px", fontSize:12, fontWeight:700, color:C.inkS }}>パーツを選んでください（タップで追加）</p>
+          {parts.length===0 ? (
+            <p style={{ fontSize:12, color:C.gray, textAlign:"center", padding:"10px 0" }}>パーツが登録されていません<br/>管理者ページから追加できます</p>
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
-              {stamps.map(name=>(
-                <button key={name} onClick={()=>{ addStamp(name); setShowStamps(false); }} style={{ background:C.cream, border:`1px solid ${C.grayLL}`, borderRadius:8, padding:6, cursor:"pointer" }}>
+              {parts.map(name=>(
+                <button key={name} onClick={()=>{ addPart(name); setShowParts(false); }} style={{ background:C.cream, border:`1px solid ${C.grayLL}`, borderRadius:8, padding:6, cursor:"pointer" }}>
                   <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/10px 10px", borderRadius:4, marginBottom:4 }}>
                     <img src={`${RAW_BASE}/stamps/${name}?t=${Date.now()}`} style={{ width:"100%", height:56, objectFit:"contain", display:"block" }} />
                   </div>
@@ -408,11 +468,26 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
                     {selected===el.id&&el.type==="text"&&editing!==el.id&&(
                       <button onClick={e=>{e.stopPropagation();setEditing(el.id);}} style={{ padding:"4px 10px", background:C.g1, border:"none", borderRadius:6, color:C.white, fontSize:11, fontWeight:700, cursor:"pointer" }}>編集</button>
                     )}
-                    <button onClick={e=>{e.stopPropagation();moveLayer(el.id,"up");}} style={SB()}>↑</button>
+                    <button onClick={e=>{e.stopPropagation();moveLayer(el.id,"up");}}   style={SB()}>↑</button>
                     <button onClick={e=>{e.stopPropagation();moveLayer(el.id,"down");}} style={SB()}>↓</button>
                     <button onClick={e=>{e.stopPropagation();if(confirm("削除？"))deleteEl(el.id);}} style={SB("#CC3333")}>✕</button>
                   </div>
                 </div>
+
+                {/* ★回転スライダー（選択中の要素） */}
+                {selected===el.id&&editing!==el.id&&(
+                  <div style={{ padding:"8px 14px 10px", background:`${C.g1}06`, borderTop:`1px solid ${C.grayLL}` }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:11, color:C.gray, flexShrink:0 }}>🔄 回転</span>
+                      <input type="range" min="-180" max="180" value={el.rotate||0}
+                        onChange={e=>updateEl(el.id,{rotate:Number(e.target.value)})}
+                        style={{ flex:1, accentColor:C.g1 }} />
+                      <span style={{ fontSize:11, color:C.gray, width:38, textAlign:"right", flexShrink:0 }}>{el.rotate||0}°</span>
+                      <button onClick={()=>updateEl(el.id,{rotate:0})} style={{ padding:"2px 8px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:5, fontSize:10, color:C.gray, cursor:"pointer", flexShrink:0 }}>リセット</button>
+                    </div>
+                  </div>
+                )}
+
                 {editing===el.id&&el.type==="text"&&(
                   <div style={{ padding:"14px", background:`${C.g1}08`, borderTop:`1px solid ${C.g1}30`, animation:"fadeUp 0.2s ease" }}>
                     <textarea value={el.text} onChange={e=>updateEl(el.id,{text:e.target.value})} style={{ width:"100%", minHeight:72, padding:"10px", background:C.white, border:`1px solid ${C.grayL}`, borderRadius:8, fontSize:15, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, resize:"vertical", outline:"none", marginBottom:10 }} />
@@ -434,6 +509,15 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
                     <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
                       <input type="color" value={el.color} onChange={e=>updateEl(el.id,{color:e.target.value})} style={{ width:44, height:36, borderRadius:8, border:`1px solid ${C.grayL}`, cursor:"pointer", padding:2 }} />
                       <span style={{ fontSize:12, color:C.gray }}>{el.color}</span>
+                    </div>
+                    {/* ★テキストにも回転 */}
+                    <label style={LS}>回転</label>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                      <input type="range" min="-180" max="180" value={el.rotate||0}
+                        onChange={e=>updateEl(el.id,{rotate:Number(e.target.value)})}
+                        style={{ flex:1, accentColor:C.g1 }} />
+                      <span style={{ fontSize:11, color:C.gray, width:38, flexShrink:0 }}>{el.rotate||0}°</span>
+                      <button onClick={()=>updateEl(el.id,{rotate:0})} style={{ padding:"2px 8px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:5, fontSize:10, color:C.gray, cursor:"pointer" }}>リセット</button>
                     </div>
                     <label style={LS}>エフェクト</label>
                     <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:14 }}>
@@ -492,6 +576,7 @@ function DoneScreen({ downloadUrl, onReset, onBack }) {
   );
 }
 
+// ★rotate対応
 function drawCanvas(canvas, elements, bgImg, W, H, selectedId, CW, CH) {
   if(!canvas)return;
   const r=W/CW;
@@ -510,6 +595,7 @@ function drawTextEl(ctx, el, r, isSelected) {
   const fontSize=TEXT_SIZES[el.size]*el.scale*r;
   ctx.save();
   ctx.translate(el.x*r, el.y*r);
+  if(el.rotate) ctx.rotate(el.rotate*Math.PI/180);
   ctx.font=`${font.weight} ${fontSize}px ${font.family},sans-serif`;
   ctx.fillStyle=el.color;
   const drawLine=(text,x,y)=>{
@@ -543,7 +629,9 @@ function drawImageEl(ctx, el, r, isSelected) {
   if(!img){ img=new Image(); img.crossOrigin="anonymous"; img.src=el.src; if(img.complete)imgCache[el.src]=img; }
   if(!img.complete)return;
   const w=el.naturalW*el.scale*r, h=el.naturalH*el.scale*r;
-  ctx.save(); ctx.translate(el.x*r,el.y*r);
+  ctx.save();
+  ctx.translate(el.x*r,el.y*r);
+  if(el.rotate) ctx.rotate(el.rotate*Math.PI/180);
   ctx.drawImage(img,-w/2,-h/2,w,h);
   if(isSelected){ctx.strokeStyle="rgba(235,97,0,0.9)";ctx.lineWidth=2;ctx.setLineDash([6,3]);ctx.strokeRect(-w/2,-h/2,w,h);ctx.setLineDash([]);}
   ctx.restore();
