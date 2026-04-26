@@ -140,20 +140,12 @@ function TabManager() {
   const loadTabs = async () => {
     setLoading(true);
     try {
-      const content = await getFileContent("src/App.jsx");
-      if (!content) { setTabs([]); setLoading(false); return; }
-      const match = content.match(/const TABS = \[([\s\S]*?)\];/);
-      if (!match) { setTabs([]); setLoading(false); return; }
-      const lines = match[1].split("\n").filter(l=>l.includes('id:'));
-      const parsed = lines.map(l=>{
-        const id    = (l.match(/id:"([^"]+)"/)    ||[])[1];
-        const label = (l.match(/label:"([^"]+)"/) ||[])[1];
-        const bg    = (l.match(/bg:"([^"]+)"/)    ||[])[1];
-        const sample= (l.match(/sample:"([^"]+)"/)  ||[])[1];
-        const sizeId= (l.match(/size:\{[^}]+id:"([^"]+)"/)  ||[])[1];
-        return id&&label ? { id, label, bg:bg||"", sample:sample||"", sizeId:sizeId||"reel" } : null;
-      }).filter(Boolean);
-      setTabs(parsed);
+      const res = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public/tabs.json?t=${Date.now()}`);
+      if (res.ok) {
+        setTabs(await res.json());
+      } else {
+        setTabs([]);
+      }
     } catch(e) { console.error(e); setTabs([]); }
     setLoading(false);
   };
@@ -201,14 +193,24 @@ function AddTabForm({ onAdded }) {
       const bgName = `bg_${tabId}.png`;
       const smName = `sample_${tabId}.png`;
       const size   = SNS_SIZES.find(s=>s.id===sizeId)||SNS_SIZES[0];
+
+      // 画像アップロード
       const [bgB64,smB64] = await Promise.all([toBase64(bgFile),toBase64(sampleFile)]);
       await uploadFile(`public/${bgName}`, bgB64, `Add bg: ${label}`);
       await uploadFile(`public/${smName}`, smB64, `Add sample: ${label}`);
-      const appContent = await getFileContent("src/App.jsx");
-      const newTab = `  { id:"${tabId}", label:"${label.trim()}", bg:"/${bgName}", sample:"/${smName}", size:{ id:"${sizeId}", w:${size.w}, h:${size.h} } },`;
-      const updated = appContent.replace(/const TABS = \[/, `const TABS = [\n${newTab}`);
-      const updatedB64 = btoa(unescape(encodeURIComponent(updated)));
-      await uploadFile("src/App.jsx", updatedB64, `Add tab: ${label}`);
+
+      // tabs.jsonを更新（App.jsxは触らない）
+      let currentTabs = [];
+      try {
+        const res = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public/tabs.json?t=${Date.now()}`);
+        if (res.ok) currentTabs = await res.json();
+      } catch {}
+
+      const newTab = { id:tabId, label:label.trim(), bg:`/${bgName}`, sample:`/${smName}`, w:size.w, h:size.h };
+      const updatedTabs = [...currentTabs, newTab];
+      const tabsB64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedTabs, null, 2))));
+      await uploadFile("public/tabs.json", tabsB64, `Add tab: ${label}`);
+
       setStatus("done"); setMessage("✅ タブを追加しました！1〜2分後に反映されます。");
       setTimeout(onAdded, 2000);
     } catch(e) { setStatus("error"); setMessage("エラー: "+e.message); }
@@ -253,7 +255,7 @@ function ExistingTabCard({ tab, onUpdated }) {
   const [bgPrev,     setBgPrev]     = useState(null);
   const [status,     setStatus]     = useState("");
   const [message,    setMessage]    = useState("");
-  const size = SNS_SIZES.find(s=>s.id===tab.sizeId)||SNS_SIZES[0];
+  const size = SNS_SIZES.find(s=>s.w===tab.w&&s.h===tab.h) || SNS_SIZES[0];
 
   const handleUpdate = async () => {
     if (!sampleFile&&!bgFile) { setMessage("画像を選択してください"); return; }

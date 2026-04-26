@@ -29,28 +29,14 @@ const FONTS = [
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
 
-const TABS = []; // 管理者ページから動的に読み込むため空
+const TABS = []; // tabs.jsonから動的に読み込む
 
-// GitHubからTABSを読み込む
+// tabs.jsonからタブ情報を読み込む（App.jsxは触らない）
 async function fetchTabsFromGitHub() {
   try {
-    const res = await fetch(
-      `https://raw.githubusercontent.com/KIZAN3x3/banner-maker/main/src/App.jsx?t=${Date.now()}`
-    );
+    const res = await fetch(`/tabs.json?t=${Date.now()}`);
     if (!res.ok) return [];
-    const content = await res.text();
-    const match = content.match(/const TABS = \[([\s\S]*?)\];/);
-    if (!match) return [];
-    const lines = match[1].split("\n").filter(l=>l.includes('id:'));
-    return lines.map(l=>{
-      const id     = (l.match(/id:"([^"]+)"/)      ||[])[1];
-      const label  = (l.match(/label:"([^"]+)"/)   ||[])[1];
-      const bg     = (l.match(/bg:"([^"]+)"/)      ||[])[1];
-      const sample = (l.match(/sample:"([^"]+)"/)  ||[])[1];
-      const sw     = (l.match(/w:(\d+)/)            ||[])[1];
-      const sh     = (l.match(/h:(\d+)/)            ||[])[1];
-      return id&&label ? { id, label, bg:bg||"", sample:sample||"", w:Number(sw)||1080, h:Number(sh)||1920 } : null;
-    }).filter(Boolean);
+    return await res.json();
   } catch { return []; }
 }
 
