@@ -38,7 +38,10 @@ async function ghPut(path, base64, message) {
     `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
     { method:"PUT", headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" }, body:JSON.stringify(body) }
   );
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`GitHub PUT失敗 [${res.status}]: ${errText}`);
+  }
 }
 
 async function ghDelete(path, message) {
@@ -58,15 +61,18 @@ function jsonToB64(obj) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
 }
 
+// ── ★修正箇所：tabs.json のデコードをシンプルに ──────────
 async function loadTabsFromGH() {
   const data = await ghGet("public/tabs.json");
   if (!data?.content) return [];
-  try {
-    const bin = atob(data.content.replace(/\n/g,""));
-    const bytes = new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-    return JSON.parse(new TextDecoder("utf-8").decode(bytes));
-  } catch { return []; }
+  // GitHub APIはbase64（改行付き）で返す。atob→TextDecoderで確実にUTF-8デコード
+  const raw = data.content.replace(/\n/g, "");
+  const decoded = decodeURIComponent(
+    atob(raw).split("").map(c => "%" + c.charCodeAt(0).toString(16).padStart(2,"0")).join("")
+  );
+  const parsed = JSON.parse(decoded);
+  if (!Array.isArray(parsed)) throw new Error("tabs.json の形式が不正です");
+  return parsed;
 }
 
 async function triggerDeploy() {
@@ -130,29 +136,41 @@ export default function Admin() {
 function TabManager() {
   const [tabs,    setTabs]    = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [loadErr, setLoadErr] = useState("");
 
   useEffect(()=>{ reload(); },[]);
 
   const reload = async () => {
-    const data = await loadTabsFromGH();
-    setTabs(data);
+    setLoadErr("");
+    try {
+      const data = await loadTabsFromGH();
+      setTabs(data);
+    } catch(e) {
+      setLoadErr("tabs.json の読み込みに失敗しました: " + e.message);
+      setTabs([]);
+    }
   };
 
   const handleDelete = async (tab) => {
     if (!confirm(`「${tab.label}」を削除しますか？\n背景画像・お手本画像も削除されます。`)) return;
-    const current = await loadTabsFromGH();
-    const updated  = current.filter(t=>t.id!==tab.id);
-    await ghPut("public/tabs.json", jsonToB64(updated), `Delete tab: ${tab.label}`);
-    try { await ghDelete(`public/${tab.bg.replace(/^\//,"")}`,     `Delete bg: ${tab.id}`); } catch {}
-    try { await ghDelete(`public/${tab.sample.replace(/^\//,"")}`, `Delete sample: ${tab.id}`); } catch {}
-    setTabs(updated);
-    await triggerDeploy();
+    try {
+      const current = await loadTabsFromGH();
+      const updated  = current.filter(t=>t.id!==tab.id);
+      await ghPut("public/tabs.json", jsonToB64(updated), `Delete tab: ${tab.label}`);
+      try { await ghDelete(`public/${tab.bg.replace(/^\//,"")}`,     `Delete bg: ${tab.id}`); } catch {}
+      try { await ghDelete(`public/${tab.sample.replace(/^\//,"")}`, `Delete sample: ${tab.id}`); } catch {}
+      setTabs(updated);
+      await triggerDeploy();
+    } catch(e) {
+      alert("削除エラー: " + e.message);
+    }
   };
 
   if (tabs===null) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32}/></div>;
 
   return (
     <div>
+      {loadErr && <p style={{ color:C.red, fontSize:12, marginBottom:12, background:"#FEF2F2", padding:"10px 14px", borderRadius:8 }}>⚠️ {loadErr}</p>}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
         <p style={{ margin:0, fontSize:16, fontWeight:700 }}>タブ管理（{tabs.length}件）</p>
         <button onClick={()=>setShowAdd(v=>!v)} style={{ padding:"8px 16px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:"pointer" }}>
@@ -283,22 +301,34 @@ function AddTabForm({ onAdded }) {
     if (!label.trim()) { setMsg("タブ名を入力してください"); return; }
     if (!sampleFile)   { setMsg("お手本画像を選択してください"); return; }
     if (!bgFile)       { setMsg("背景画像を選択してください"); return; }
-    setStatus("uploading"); setMsg("アップロード中...");
+    setStatus("uploading"); setMsg("① 背景画像をアップロード中...");
     try {
       const tabId  = "tab_" + Date.now();
       const bgName = `bg_${tabId}.png`;
       const smName = `sample_${tabId}.png`;
       const size   = SNS_SIZES.find(s=>s.id===sizeId)||SNS_SIZES[0];
-      const [bgB64,smB64] = await Promise.all([toBase64(bgFile),toBase64(sampleFile)]);
+
+      // 画像を1枚ずつ直列でアップロード（並列にしない）
+      const bgB64 = await toBase64(bgFile);
       await ghPut(`public/${bgName}`, bgB64, `Add bg: ${label}`);
+
+      setMsg("② お手本画像をアップロード中...");
+      const smB64 = await toBase64(sampleFile);
       await ghPut(`public/${smName}`, smB64, `Add sample: ${label}`);
+
+      setMsg("③ タブ情報を保存中...");
       const currentTabs = await loadTabsFromGH();
       const newTab = { id:tabId, label:label.trim(), bg:`/${bgName}`, sample:`/${smName}`, w:size.w, h:size.h };
       await ghPut("public/tabs.json", jsonToB64([...currentTabs, newTab]), `Add tab: ${label}`);
+
       await triggerDeploy();
-      setStatus("done"); setMsg("✅ 追加しました！約1分後にアプリに反映されます。");
+      setStatus("done");
+      setMsg("✅ 追加しました！約1分後にアプリに反映されます。");
       onAdded(newTab);
-    } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
+    } catch(e) {
+      setStatus("error");
+      setMsg("エラー: " + e.message);
+    }
   };
 
   return (
