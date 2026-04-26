@@ -159,16 +159,87 @@ function TabManager() {
 
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {tabs.map(t=>(
-          <div key={t.id} style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ flex:1 }}>
-              <p style={{ margin:0, fontSize:14, fontWeight:700 }}>{t.label}</p>
-              <p style={{ margin:"2px 0 0", fontSize:11, color:C.gray }}>{t.w}×{t.h}px　{t.bg}</p>
-            </div>
-            <button onClick={()=>deleteTab(t.id)} style={{ padding:"6px 12px", background:"none", border:`1px solid ${C.red}`, borderRadius:8, color:C.red, fontSize:12, cursor:"pointer" }}>削除</button>
-          </div>
+          <TabCard key={t.id} tab={t} onDelete={()=>deleteTab(t.id)} onUpdate={(updated)=>setTabs(prev=>prev.map(p=>p.id===t.id?updated:p))} />
         ))}
         {tabs.length===0&&!showAdd&&<p style={{ textAlign:"center", color:C.gray, padding:20 }}>タブがありません</p>}
       </div>
+    </div>
+  );
+}
+
+// ── タブカード（編集機能付き） ────────────────────────────
+function TabCard({ tab, onDelete, onUpdate }) {
+  const [open,       setOpen]       = useState(false);
+  const [label,      setLabel]      = useState(tab.label);
+  const [sampleFile, setSampleFile] = useState(null);
+  const [samplePrev, setSamplePrev] = useState(null);
+  const [bgFile,     setBgFile]     = useState(null);
+  const [bgPrev,     setBgPrev]     = useState(null);
+  const [status,     setStatus]     = useState("");
+  const [message,    setMessage]    = useState("");
+  const size = SNS_SIZES.find(s=>s.w===tab.w&&s.h===tab.h)||SNS_SIZES[0];
+
+  const handleUpdate = async () => {
+    if (!label.trim()) { setMessage("タブ名を入力してください"); return; }
+    setStatus("uploading"); setMessage("更新中...");
+    try {
+      let updatedTab = { ...tab, label:label.trim() };
+
+      if (sampleFile) {
+        const b64 = await toBase64(sampleFile);
+        await ghPut(`public/${tab.sample.replace(/^\//,"")}`, b64, `Update sample: ${label}`);
+      }
+      if (bgFile) {
+        const b64 = await toBase64(bgFile);
+        await ghPut(`public/${tab.bg.replace(/^\//,"")}`, b64, `Update bg: ${label}`);
+      }
+
+      // tabs.jsonのラベルを更新
+      const currentTabs = await fetchTabs();
+      const newTabs = currentTabs.map(t=>t.id===tab.id ? updatedTab : t);
+      await ghPut("public/tabs.json", jsonToBase64(newTabs), `Update tab: ${label}`);
+
+      setStatus("done"); setMessage("✅ 更新しました！");
+      onUpdate(updatedTab);
+    } catch(e) { setStatus("error"); setMessage("エラー: "+e.message); }
+  };
+
+  return (
+    <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
+      {/* ヘッダー行 */}
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
+        {/* サムネイル */}
+        <img src={tab.sample+"?t="+Date.now()} onError={e=>e.target.style.display="none"}
+          style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0 }} />
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ margin:0, fontSize:14, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{tab.label}</p>
+          <p style={{ margin:"2px 0 0", fontSize:10, color:C.gray }}>{size.label}　{tab.w}×{tab.h}px</p>
+        </div>
+        <button onClick={()=>setOpen(v=>!v)} style={{ padding:"6px 12px", background:C.cream, border:`1px solid ${C.grayL}`, borderRadius:8, color:C.ink, fontSize:12, cursor:"pointer", flexShrink:0 }}>
+          {open?"閉じる":"編集"}
+        </button>
+        <button onClick={onDelete} style={{ padding:"6px 10px", background:"none", border:`1px solid ${C.red}`, borderRadius:8, color:C.red, fontSize:12, cursor:"pointer", flexShrink:0 }}>削除</button>
+      </div>
+
+      {/* 編集パネル */}
+      {open&&(
+        <div style={{ padding:"14px 16px", borderTop:`1px solid ${C.grayLL}`, background:C.cream, animation:"fadeUp 0.2s ease" }}>
+          <label style={LS}>タブ名</label>
+          <input value={label} onChange={e=>setLabel(e.target.value)} style={IS} />
+
+          <label style={LS}>① お手本画像を差し替え（任意）</label>
+          <DropZone preview={samplePrev||tab.sample} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="お手本画像をドロップ / タップして選択" small />
+
+          <label style={{ ...LS, marginTop:10 }}>② 背景画像を差し替え（任意）</label>
+          <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="背景画像をドロップ / タップして選択" small />
+
+          {message&&<p style={{ margin:"8px 0 0", fontSize:12, color:status==="done"?C.green:status==="error"?C.red:C.g1 }}>{message}</p>}
+
+          <button onClick={handleUpdate} disabled={status==="uploading"} style={{ width:"100%", marginTop:12, padding:"11px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, fontFamily:"'Noto Sans JP',sans-serif" }}>
+            {status==="uploading"?<><Spinner size={14} color={C.white}/>更新中...</>:"更新する"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
