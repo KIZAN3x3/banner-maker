@@ -279,14 +279,21 @@ function StampManager() {
         newStamps.push({ name:file.name, url:URL.createObjectURL(file) });
       } catch(e) { alert("エラー: "+e.message); }
     }
-    setStamps(prev=>[...prev, ...newStamps]);
+    // index.jsonを更新
+    const updatedStamps = [...stamps, ...newStamps];
+    setStamps(updatedStamps);
+    const indexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedStamps.map(s=>s.name)))));
+    await ghPut("public/stamps/index.json", indexB64, "Update stamps index");
     setUploading(false);
   };
 
   const deleteStamp = async (name) => {
     if (!confirm(`「${name}」を削除しますか？`)) return;
     await ghDelete(`public/stamps/${name}`, `Delete stamp: ${name}`);
-    setStamps(s=>s.filter(st=>st.name!==name));
+    const updated = stamps.filter(st=>st.name!==name);
+    setStamps(updated);
+    const indexB64 = btoa(unescape(encodeURIComponent(JSON.stringify(updated.map(s=>s.name)))));
+    await ghPut("public/stamps/index.json", indexB64, "Update stamps index");
   };
 
   if (loading) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32} /></div>;

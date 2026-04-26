@@ -59,12 +59,9 @@ async function fetchTabs() {
 
 async function fetchStamps() {
   try {
-    const res = await fetch(`https://api.github.com/repos/KIZAN3x3/banner-maker/contents/public/stamps`, {
-      headers:{ Accept:"application/vnd.github.v3+json" }
-    });
+    const res = await fetch(`/stamps/index.json?t=${Date.now()}`);
     if (!res.ok) return [];
-    const files = await res.json();
-    return Array.isArray(files) ? files.filter(f=>f.type==="file").map(f=>f.name) : [];
+    return await res.json();
   } catch { return []; }
 }
 
