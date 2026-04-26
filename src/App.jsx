@@ -51,17 +51,9 @@ const imgCache = {};
 
 async function fetchTabs() {
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/KIZAN3x3/banner-maker/contents/public/tabs.json`,
-      { headers:{ Accept:"application/vnd.github.v3+json" } }
-    );
+    const res = await fetch(`/tabs.json?t=${Date.now()}`);
     if (!res.ok) return [];
-    const data = await res.json();
-    if (!data?.content) return [];
-    const bin = atob(data.content.replace(/\n/g,""));
-    const bytes = new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-    return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+    return await res.json();
   } catch { return []; }
 }
 
