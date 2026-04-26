@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const ADMIN_PASSWORD = "123123";
+const ADMIN_PASSWORD = "admin123";
 const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
 const GITHUB_OWNER = "KIZAN3x3";
 const GITHUB_REPO = "banner-maker";
@@ -62,7 +62,11 @@ async function getFileContent(path) {
   );
   if (!res.ok) return null;
   const data = await res.json();
-  return atob(data.content.replace(/\n/g,""));
+  // UTF-8対応デコード
+  const binary = atob(data.content.replace(/\n/g,""));
+  const bytes = new Uint8Array(binary.length);
+  for (let i=0; i<binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder("utf-8").decode(bytes);
 }
 
 function toBase64(file) {
