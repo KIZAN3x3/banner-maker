@@ -29,7 +29,8 @@ const FONTS = [
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
 
-const TABS = [];
+const TABS = [
+  { id:"tab_1777178708425", label:"当選バナー", bg:"/bg_tab_1777178708425.png", sample:"/sample_tab_1777178708425.png", size:{ id:"feed_v", w:1080, h:1350 } },];
 
 const CW = 1080;
 const CH = 1920;
