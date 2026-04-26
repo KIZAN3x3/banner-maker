@@ -138,10 +138,12 @@ function MainApp() {
   const [showSample, setShowSample] = useState(true);
 
   const previewRef = useRef(null);
-  const PW = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
-  const PH = Math.round(PW*(tab?.h||1920)/(tab?.w||1080));
-  const R  = PW/(tab?.w||1080);
   const tab = tabs.find(t=>t.id===activeTab);
+  const CW_ = tab?.w || 1080;
+  const CH_ = tab?.h || 1920;
+  const PW = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
+  const PH = Math.round(PW*CH_/CW_);
+  const R  = PW/CW_;
 
   // タブをGitHubから読み込む
   useEffect(()=>{
