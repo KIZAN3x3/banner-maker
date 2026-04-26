@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const ADMIN_PASSWORD = "admin123";
+const ADMIN_PASSWORD = "123123";
 const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
 const GITHUB_OWNER = "KIZAN3x3";
 const GITHUB_REPO = "banner-maker";

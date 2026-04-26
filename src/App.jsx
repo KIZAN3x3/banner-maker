@@ -29,14 +29,7 @@ const FONTS = [
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
 
-const TABS = [
-  { id:"sns",       label:"SNS枠",         bg:"/ins-bg.png",       sample:"/ins-sample.png"       },
-  { id:"vote",      label:"投票依頼",      bg:"/bg_vote.png",      sample:"/sample_vote.png"      },
-  { id:"schedule",  label:"スケジュール",  bg:"/bg_schedule.png",  sample:"/sample_schedule.png"  },
-  { id:"speech",    label:"演説告知",      bg:"/bg_speech.png",    sample:"/sample_speech.png"    },
-  { id:"countdown", label:"カウントダウン",bg:"/bg_countdown.png", sample:"/sample_countdown.png" },
-  { id:"win",       label:"当選",          bg:"/bg_win.png",       sample:"/sample_win.png"       },
-];
+const TABS = [];
 
 const CW = 1080;
 const CH = 1920;
@@ -378,18 +371,6 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
   return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"12px 16px 40px" }}>
 
-      {/* ツールバー */}
-      <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-        <button onClick={addText} style={toolBtn(C.g1)}>＋ テキスト</button>
-        <label style={toolBtn("#4A90D9")}>
-          ＋ 画像
-          <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
-        </label>
-        <button onClick={()=>setShowSample(v=>!v)} style={toolBtn(showSample?"#555":"#888")}>
-          {showSample?"お手本を隠す":"お手本を表示"}
-        </button>
-      </div>
-
       {/* お手本 */}
       {showSample&&sampleImg&&(
         <div style={{ marginBottom:12, borderRadius:10, overflow:"hidden", border:`1px solid ${C.grayL}` }}>
@@ -409,6 +390,18 @@ function PreviewScreen({ elements, setElements, selected, setSelected, editing, 
       <p style={{ textAlign:"center", fontSize:10, color:C.gray, marginTop:5 }}>
         {selected?"ドラッグで移動　ピンチで拡縮":"↓ レイヤーで要素を選んでください"}
       </p>
+
+      {/* ツールバー */}
+      <div style={{ display:"flex", gap:8, marginTop:12, marginBottom:4, flexWrap:"wrap" }}>
+        <button onClick={addText} style={toolBtn(C.g1)}>＋ テキスト</button>
+        <label style={toolBtn("#4A90D9")}>
+          ＋ 画像
+          <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
+        </label>
+        <button onClick={()=>setShowSample(v=>!v)} style={toolBtn(showSample?"#555":"#888")}>
+          {showSample?"お手本を隠す":"お手本を表示"}
+        </button>
+      </div>
 
       {/* レイヤー＋編集パネル統合 */}
       {elements.length>0&&(
