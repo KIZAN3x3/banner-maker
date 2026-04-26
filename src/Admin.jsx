@@ -3,13 +3,12 @@ import { useState, useRef, useEffect } from "react";
 const ADMIN_PASSWORD = "123123";
 const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
 const GITHUB_OWNER = "KIZAN3x3";
-const GITHUB_REPO = "banner-maker";
+const GITHUB_REPO  = "banner-maker";
 const GITHUB_BRANCH = "main";
 
 const C = {
   g1:"#EB6100", g2:"#F18D00",
-  ink:"#18120A", inkS:"#3D2E1E",
-  white:"#FFFFFF", cream:"#FAF6F0",
+  ink:"#18120A", white:"#FFFFFF", cream:"#FAF6F0",
   gray:"#9C8E80", grayL:"#D6CEC4", grayLL:"#EDE7DF",
   dark:"#0F0A05", green:"#22C55E", red:"#EF4444",
 };
@@ -20,72 +19,65 @@ const SNS_SIZES = [
   { id:"feed_sq",label:"フィード正方形",        w:1080, h:1080 },
 ];
 
-async function getFileSha(path) {
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
-    { headers: { Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json" } }
-  );
-  if (!res.ok) return undefined;
-  return (await res.json()).sha;
-}
-
-async function uploadFile(path, base64, message) {
-  const sha = await getFileSha(path);
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
-    {
-      method:"PUT",
-      headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" },
-      body:JSON.stringify({ message, content:base64, branch:GITHUB_BRANCH, ...(sha?{sha}:{}) }),
-    }
-  );
-  if (!res.ok) throw new Error(await res.text());
-}
-
-async function deleteFile(path, message) {
-  const sha = await getFileSha(path);
-  if (!sha) return;
-  await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
-    {
-      method:"DELETE",
-      headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" },
-      body:JSON.stringify({ message, sha, branch:GITHUB_BRANCH }),
-    }
-  );
-}
-
-async function getFileContent(path) {
+// ── GitHub API ────────────────────────────────────────────
+async function ghGet(path) {
   const res = await fetch(
     `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
     { headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json" } }
   );
   if (!res.ok) return null;
-  const data = await res.json();
-  // UTF-8対応デコード
-  const binary = atob(data.content.replace(/\n/g,""));
-  const bytes = new Uint8Array(binary.length);
-  for (let i=0; i<binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new TextDecoder("utf-8").decode(bytes);
+  return res.json();
+}
+
+async function ghPut(path, base64, message) {
+  const existing = await ghGet(path);
+  const body = { message, content:base64, branch:GITHUB_BRANCH };
+  if (existing?.sha) body.sha = existing.sha;
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
+    { method:"PUT", headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" }, body:JSON.stringify(body) }
+  );
+  if (!res.ok) throw new Error(await res.text());
+}
+
+async function ghDelete(path, message) {
+  const existing = await ghGet(path);
+  if (!existing?.sha) return;
+  await fetch(
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
+    { method:"DELETE", headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" }, body:JSON.stringify({ message, sha:existing.sha, branch:GITHUB_BRANCH }) }
+  );
 }
 
 function toBase64(file) {
-  return new Promise((resolve,reject)=>{
-    const r = new FileReader();
-    r.onload = ()=>resolve(r.result.split(",")[1]);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.onerror=rej; r.readAsDataURL(file); });
 }
 
+function jsonToBase64(obj) {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
+}
+
+// tabs.jsonを取得（GitHub API経由・キャッシュなし）
+async function fetchTabs() {
+  const data = await ghGet("public/tabs.json");
+  if (!data?.content) return [];
+  try {
+    const binary = atob(data.content.replace(/\n/g,""));
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+    return JSON.parse(new TextDecoder("utf-8").decode(bytes));
+  } catch { return []; }
+}
+
+// ── App ───────────────────────────────────────────────────
 export default function Admin() {
-  const [authed, setAuthed] = useState(false);
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("bm_admin_auth")==="1");
   const [pw,     setPw]     = useState("");
   const [err,    setErr]    = useState("");
-  const [tab,    setTab]    = useState("tabs");
+  const [page,   setPage]   = useState("tabs");
 
   const login = () => {
-    if (pw===ADMIN_PASSWORD) setAuthed(true);
+    if (pw===ADMIN_PASSWORD) { sessionStorage.setItem("bm_admin_auth","1"); setAuthed(true); }
     else { setErr("パスワードが違います"); setTimeout(()=>setErr(""),1500); }
   };
 
@@ -108,71 +100,80 @@ export default function Admin() {
 
   return (
     <div style={{ minHeight:"100vh", background:C.cream, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, paddingBottom:60 }}>
-      <header style={{ background:C.ink, height:56, display:"flex", alignItems:"center", padding:"0 16px", gap:12, position:"sticky", top:0, zIndex:100, boxShadow:"0 2px 20px #00000055" }}>
+      <header style={{ background:C.ink, height:56, display:"flex", alignItems:"center", padding:"0 16px", gap:12, position:"sticky", top:0, zIndex:100 }}>
         <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${C.g1},${C.g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:900, color:C.white }}>管理</div>
         <p style={{ margin:0, fontSize:13, fontWeight:700, color:C.white, flex:1 }}>バナーメーカー管理者</p>
         <a href="/" style={{ fontSize:12, color:C.gray, textDecoration:"none" }}>← アプリへ</a>
       </header>
-
       <div style={{ background:C.white, borderBottom:`1px solid ${C.grayLL}`, display:"flex" }}>
         {[["tabs","📋 タブ管理"],["stamps","🏷️ スタンプ管理"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{ flex:1, padding:"12px", background:"none", border:"none", borderBottom:`3px solid ${tab===id?C.g1:"transparent"}`, color:tab===id?C.g1:C.gray, fontSize:13, fontWeight:tab===id?700:400, cursor:"pointer", fontFamily:"'Noto Sans JP',sans-serif" }}>{label}</button>
+          <button key={id} onClick={()=>setPage(id)} style={{ flex:1, padding:"12px", background:"none", border:"none", borderBottom:`3px solid ${page===id?C.g1:"transparent"}`, color:page===id?C.g1:C.gray, fontSize:13, fontWeight:page===id?700:400, cursor:"pointer", fontFamily:"'Noto Sans JP',sans-serif" }}>{label}</button>
         ))}
       </div>
-
       <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px" }}>
-        {tab==="tabs"   && <TabManager />}
-        {tab==="stamps" && <StampManager />}
+        {page==="tabs"   && <TabManager />}
+        {page==="stamps" && <StampManager />}
       </div>
-
-      <style>{`*{box-sizing:border-box} @keyframes spin{to{transform:rotate(360deg)}} input::placeholder{color:#C0B8B0} @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
+      <style>{`*{box-sizing:border-box} @keyframes spin{to{transform:rotate(360deg)}} @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}} input::placeholder{color:#C0B8B0}`}</style>
     </div>
   );
 }
 
+// ── タブ管理 ──────────────────────────────────────────────
 function TabManager() {
-  const [showAdd, setShowAdd] = useState(false);
   const [tabs,    setTabs]    = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(()=>{ loadTabs(); },[]);
 
   const loadTabs = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/tabs.json?t=${Date.now()}`);
-      if (res.ok) {
-        setTabs(await res.json());
-      } else {
-        setTabs([]);
-      }
-    } catch(e) { console.error(e); setTabs([]); }
-    setLoading(false);
+    const data = await fetchTabs();
+    setTabs(data);
   };
 
-  if (loading) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32} /></div>;
+  const addTab = (newTab) => {
+    setTabs(prev => [...(prev||[]), newTab]);
+    setShowAdd(false);
+  };
+
+  const deleteTab = async (tabId) => {
+    if (!confirm("このタブを削除しますか？")) return;
+    const current = await fetchTabs();
+    const updated = current.filter(t=>t.id!==tabId);
+    await ghPut("public/tabs.json", jsonToBase64(updated), `Delete tab: ${tabId}`);
+    setTabs(updated);
+  };
+
+  if (tabs===null) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32} /></div>;
 
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-        <p style={{ margin:0, fontSize:16, fontWeight:700 }}>タブ管理</p>
+        <p style={{ margin:0, fontSize:16, fontWeight:700 }}>タブ管理（{tabs.length}件）</p>
         <button onClick={()=>setShowAdd(v=>!v)} style={{ padding:"8px 16px", background:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:"pointer" }}>
           {showAdd?"キャンセル":"＋ タブを追加"}
         </button>
       </div>
 
-      {showAdd && <AddTabForm onAdded={(newTab)=>{ setShowAdd(false); setTabs(prev=>[...prev, newTab]); }} />}
+      {showAdd && <AddTabForm onAdded={addTab} />}
 
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-        {tabs?.map(t=>(
-          <ExistingTabCard key={t.id} tab={t} onUpdated={loadTabs} />
+        {tabs.map(t=>(
+          <div key={t.id} style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ flex:1 }}>
+              <p style={{ margin:0, fontSize:14, fontWeight:700 }}>{t.label}</p>
+              <p style={{ margin:"2px 0 0", fontSize:11, color:C.gray }}>{t.w}×{t.h}px　{t.bg}</p>
+            </div>
+            <button onClick={()=>deleteTab(t.id)} style={{ padding:"6px 12px", background:"none", border:`1px solid ${C.red}`, borderRadius:8, color:C.red, fontSize:12, cursor:"pointer" }}>削除</button>
+          </div>
         ))}
-        {tabs?.length===0&&!showAdd&&<p style={{ textAlign:"center", color:C.gray, padding:20 }}>タブがありません</p>}
+        {tabs.length===0&&!showAdd&&<p style={{ textAlign:"center", color:C.gray, padding:20 }}>タブがありません</p>}
       </div>
     </div>
   );
 }
 
+// ── タブ追加フォーム ──────────────────────────────────────
 function AddTabForm({ onAdded }) {
   const [label,      setLabel]      = useState("");
   const [sizeId,     setSizeId]     = useState("reel");
@@ -187,7 +188,7 @@ function AddTabForm({ onAdded }) {
     if (!label.trim())  { setMessage("タブ名を入力してください"); return; }
     if (!sampleFile)    { setMessage("お手本画像を選択してください"); return; }
     if (!bgFile)        { setMessage("背景画像を選択してください"); return; }
-    setStatus("uploading"); setMessage("");
+    setStatus("uploading"); setMessage("アップロード中...");
     try {
       const tabId  = "tab_" + Date.now();
       const bgName = `bg_${tabId}.png`;
@@ -196,34 +197,32 @@ function AddTabForm({ onAdded }) {
 
       // 画像アップロード
       const [bgB64,smB64] = await Promise.all([toBase64(bgFile),toBase64(sampleFile)]);
-      await uploadFile(`public/${bgName}`, bgB64, `Add bg: ${label}`);
-      await uploadFile(`public/${smName}`, smB64, `Add sample: ${label}`);
+      await ghPut(`public/${bgName}`,  bgB64, `Add bg: ${label}`);
+      await ghPut(`public/${smName}`,  smB64, `Add sample: ${label}`);
 
-      // tabs.jsonを更新（App.jsxは触らない）
-      let currentTabs = [];
-      try {
-        const res = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public/tabs.json?t=${Date.now()}`);
-        if (res.ok) currentTabs = await res.json();
-      } catch {}
-
+      // tabs.jsonを更新（GitHub API経由でキャッシュなし）
+      const currentTabs = await fetchTabs();
       const newTab = { id:tabId, label:label.trim(), bg:`/${bgName}`, sample:`/${smName}`, w:size.w, h:size.h };
       const updatedTabs = [...currentTabs, newTab];
-      const tabsB64 = btoa(unescape(encodeURIComponent(JSON.stringify(updatedTabs, null, 2))));
-      await uploadFile("public/tabs.json", tabsB64, `Add tab: ${label}`);
+      await ghPut("public/tabs.json", jsonToBase64(updatedTabs), `Add tab: ${label}`);
 
-      setStatus("done"); setMessage("✅ タブを追加しました！");
+      setStatus("done");
+      setMessage("✅ 追加しました！");
       onAdded(newTab);
-    } catch(e) { setStatus("error"); setMessage("エラー: "+e.message); }
+    } catch(e) {
+      setStatus("error");
+      setMessage("エラー: "+e.message);
+    }
   };
 
   return (
     <div style={{ background:C.white, borderRadius:14, padding:"20px", border:`1.5px solid ${C.g1}`, marginBottom:16, animation:"fadeUp 0.2s ease" }}>
       <p style={{ margin:"0 0 16px", fontSize:14, fontWeight:700, color:C.g1 }}>新規タブを追加</p>
 
-      <label style={labelS}>タブ名</label>
-      <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="例：当選報告" style={inputS} />
+      <label style={LS}>タブ名</label>
+      <input value={label} onChange={e=>setLabel(e.target.value)} placeholder="例：投票依頼" style={IS} />
 
-      <label style={labelS}>SNSサイズ</label>
+      <label style={LS}>SNSサイズ</label>
       <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
         {SNS_SIZES.map(s=>(
           <button key={s.id} onClick={()=>setSizeId(s.id)} style={{ padding:"8px 12px", background:sizeId===s.id?C.ink:C.cream, border:`1px solid ${sizeId===s.id?C.ink:C.grayL}`, borderRadius:8, color:sizeId===s.id?C.white:C.ink, fontSize:12, fontWeight:sizeId===s.id?700:400, cursor:"pointer" }}>
@@ -232,70 +231,26 @@ function AddTabForm({ onAdded }) {
         ))}
       </div>
 
-      <label style={labelS}>① お手本バナー画像</label>
+      <label style={LS}>① お手本バナー画像</label>
       <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="お手本画像をドロップ / タップして選択" />
 
-      <label style={{ ...labelS, marginTop:12 }}>② 背景画像</label>
+      <label style={{ ...LS, marginTop:12 }}>② 背景画像</label>
       <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="背景画像をドロップ / タップして選択" />
 
       {message&&<p style={{ margin:"10px 0 0", fontSize:12, color:status==="done"?C.green:status==="error"?C.red:C.g1 }}>{message}</p>}
 
-      <button onClick={submit} disabled={status==="uploading"} style={{ width:"100%", marginTop:16, padding:"13px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:12, color:C.white, fontSize:14, fontWeight:700, cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+      <button onClick={submit} disabled={status==="uploading"} style={{ width:"100%", marginTop:16, padding:"13px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:12, color:C.white, fontSize:14, fontWeight:700, cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, fontFamily:"'Noto Sans JP',sans-serif" }}>
         {status==="uploading"?<><Spinner size={16} color={C.white}/>アップロード中...</>:"✦ タブを追加する"}
       </button>
     </div>
   );
 }
 
-function ExistingTabCard({ tab, onUpdated }) {
-  const [open,       setOpen]       = useState(false);
-  const [sampleFile, setSampleFile] = useState(null);
-  const [samplePrev, setSamplePrev] = useState(null);
-  const [bgFile,     setBgFile]     = useState(null);
-  const [bgPrev,     setBgPrev]     = useState(null);
-  const [status,     setStatus]     = useState("");
-  const [message,    setMessage]    = useState("");
-  const size = SNS_SIZES.find(s=>s.w===tab.w&&s.h===tab.h) || SNS_SIZES[0];
-
-  const handleUpdate = async () => {
-    if (!sampleFile&&!bgFile) { setMessage("画像を選択してください"); return; }
-    setStatus("uploading"); setMessage("");
-    try {
-      if (sampleFile) { const b64=await toBase64(sampleFile); await uploadFile(`public/${tab.sample.replace(/^\//,"")}`,b64,`Update sample: ${tab.label}`); }
-      if (bgFile)     { const b64=await toBase64(bgFile);     await uploadFile(`public/${tab.bg.replace(/^\//,"")}`    ,b64,`Update bg: ${tab.label}`); }
-      setStatus("done"); setMessage("✅ 更新しました！1〜2分後に反映されます。");
-    } catch(e) { setStatus("error"); setMessage("エラー: "+e.message); }
-  };
-
-  return (
-    <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
-      <div onClick={()=>setOpen(v=>!v)} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", cursor:"pointer" }}>
-        <div style={{ flex:1 }}>
-          <p style={{ margin:0, fontSize:14, fontWeight:700 }}>{tab.label}</p>
-          <p style={{ margin:"2px 0 0", fontSize:11, color:C.gray }}>{size.label}　{size.w}×{size.h}px</p>
-        </div>
-        <span style={{ color:C.gray }}>{open?"▲":"▼"}</span>
-      </div>
-      {open&&(
-        <div style={{ padding:"14px 16px", borderTop:`1px solid ${C.grayLL}`, background:C.cream, animation:"fadeUp 0.2s ease" }}>
-          <label style={labelS}>① お手本画像を差し替え</label>
-          <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="お手本画像をドロップ" small />
-          <label style={{ ...labelS, marginTop:12 }}>② 背景画像を差し替え</label>
-          <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="背景画像をドロップ" small />
-          {message&&<p style={{ margin:"8px 0 0", fontSize:12, color:status==="done"?C.green:status==="error"?C.red:C.g1 }}>{message}</p>}
-          <button onClick={handleUpdate} disabled={status==="uploading"} style={{ width:"100%", marginTop:12, padding:"11px", background:status==="uploading"?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:status==="uploading"?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            {status==="uploading"?<><Spinner size={14} color={C.white}/>更新中...</>:"更新する"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
+// ── スタンプ管理 ──────────────────────────────────────────
 function StampManager() {
-  const [stamps,  setStamps]  = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading,setUploading]=useState(false);
+  const [stamps,   setStamps]   = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [uploading,setUploading]= useState(false);
 
   useEffect(()=>{ loadStamps(); },[]);
 
@@ -308,27 +263,29 @@ function StampManager() {
       );
       if (res.ok) {
         const files = await res.json();
-        setStamps(Array.isArray(files)?files.filter(f=>f.type==="file").map(f=>({ name:f.name, url:`/stamps/${f.name}?t=${Date.now()}` })):[]);
+        setStamps(Array.isArray(files)?files.filter(f=>f.type==="file").map(f=>({ name:f.name, url:f.download_url+"?t="+Date.now() })):[]);
       } else { setStamps([]); }
     } catch { setStamps([]); }
     setLoading(false);
   };
 
-  const uploadStamp = async (files) => {
+  const uploadStamps = async (files) => {
     setUploading(true);
+    const newStamps = [];
     for (const file of files) {
       try {
         const b64 = await toBase64(file);
-        await uploadFile(`public/stamps/${file.name}`, b64, `Add stamp: ${file.name}`);
+        await ghPut(`public/stamps/${file.name}`, b64, `Add stamp: ${file.name}`);
+        newStamps.push({ name:file.name, url:URL.createObjectURL(file) });
       } catch(e) { alert("エラー: "+e.message); }
     }
+    setStamps(prev=>[...prev, ...newStamps]);
     setUploading(false);
-    setTimeout(loadStamps, 1500);
   };
 
   const deleteStamp = async (name) => {
     if (!confirm(`「${name}」を削除しますか？`)) return;
-    await deleteFile(`public/stamps/${name}`, `Delete stamp: ${name}`);
+    await ghDelete(`public/stamps/${name}`, `Delete stamp: ${name}`);
     setStamps(s=>s.filter(st=>st.name!==name));
   };
 
@@ -337,20 +294,15 @@ function StampManager() {
   return (
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-        <p style={{ margin:0, fontSize:16, fontWeight:700 }}>スタンプ管理</p>
+        <p style={{ margin:0, fontSize:16, fontWeight:700 }}>スタンプ管理（{stamps.length}件）</p>
         <label style={{ padding:"8px 16px", background:uploading?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:uploading?"not-allowed":"pointer" }}>
           {uploading?"アップロード中...":"＋ スタンプを追加"}
-          <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={uploading} onChange={e=>{ uploadStamp(Array.from(e.target.files)); e.target.value=""; }} />
+          <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={uploading} onChange={e=>{ uploadStamps(Array.from(e.target.files)); e.target.value=""; }} />
         </label>
       </div>
-
       <div style={{ background:"#FFF8E1", border:"1px solid #F59E0B", borderRadius:10, padding:"10px 14px", marginBottom:16 }}>
-        <p style={{ margin:0, fontSize:12, color:"#92400E", lineHeight:1.7 }}>
-          📌 PNG推奨（透過背景にするとキレイに使えます）<br/>
-          アップロード後1〜2分でユーザーページに反映されます。
-        </p>
+        <p style={{ margin:0, fontSize:12, color:"#92400E", lineHeight:1.7 }}>📌 PNG推奨（透過背景推奨）　複数同時選択可能</p>
       </div>
-
       {stamps.length===0 ? (
         <p style={{ textAlign:"center", color:C.gray, padding:20 }}>スタンプがありません</p>
       ) : (
@@ -372,20 +324,20 @@ function StampManager() {
   );
 }
 
-function DropZone({ preview, onFile, label, small }) {
+// ── DropZone ──────────────────────────────────────────────
+function DropZone({ preview, onFile, label }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef();
-  const handleDrop = (e)=>{ e.preventDefault(); setDragOver(false); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith("image/"))onFile(f); };
   return (
     <div
       onDragOver={e=>{ e.preventDefault(); setDragOver(true); }}
       onDragLeave={()=>setDragOver(false)}
-      onDrop={handleDrop}
+      onDrop={e=>{ e.preventDefault(); setDragOver(false); const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith("image/"))onFile(f); }}
       onClick={()=>inputRef.current.click()}
-      style={{ border:`2px dashed ${dragOver?C.g1:C.grayL}`, borderRadius:10, padding:small?10:18, background:dragOver?`${C.g1}08`:C.cream, cursor:"pointer", textAlign:"center", transition:"all 0.2s", marginBottom:4 }}
+      style={{ border:`2px dashed ${dragOver?C.g1:C.grayL}`, borderRadius:10, padding:18, background:dragOver?`${C.g1}08`:C.cream, cursor:"pointer", textAlign:"center", transition:"all 0.2s", marginBottom:4 }}
     >
       {preview
-        ? <img src={preview} style={{ maxWidth:"100%", maxHeight:small?80:120, objectFit:"contain", borderRadius:6 }} />
+        ? <img src={preview} style={{ maxWidth:"100%", maxHeight:120, objectFit:"contain", borderRadius:6 }} />
         : <p style={{ margin:0, fontSize:12, color:C.gray }}>{label}</p>
       }
       <input ref={inputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ if(e.target.files[0])onFile(e.target.files[0]); e.target.value=""; }} />
@@ -393,8 +345,8 @@ function DropZone({ preview, onFile, label, small }) {
   );
 }
 
-const labelS = { display:"block", fontSize:11, fontWeight:700, color:C.gray, marginBottom:5 };
-const inputS  = { width:"100%", padding:"10px 12px", marginBottom:14, background:C.cream, border:`1px solid ${C.grayL}`, borderRadius:8, fontSize:14, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, outline:"none" };
+const LS = { display:"block", fontSize:11, fontWeight:700, color:C.gray, marginBottom:5 };
+const IS = { width:"100%", padding:"10px 12px", marginBottom:14, background:C.cream, border:`1px solid ${C.grayL}`, borderRadius:8, fontSize:14, fontFamily:"'Noto Sans JP',sans-serif", color:C.ink, outline:"none" };
 
 function Spinner({ size=20, color=C.g1 }) {
   return <div style={{ width:size, height:size, flexShrink:0, border:`2px solid ${color}30`, borderTop:`2px solid ${color}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />;
