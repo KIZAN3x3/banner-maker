@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 
 const ADMIN_PASSWORD     = "123123";
-const GITHUB_TOKEN       = import.meta.env.VITE_GITHUB_TOKEN;
 const GITHUB_OWNER       = "KIZAN3x3";
 const GITHUB_REPO        = "banner-maker";
-const GITHUB_BRANCH      = "main";
 const VERCEL_DEPLOY_HOOK = "https://api.vercel.com/v1/integrations/deploy/prj_J4dUU6AAwHjkqY6EDQIdwzxRKPsP/tjrYEm5kD5";
-const RAW_BASE = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public`;
+const RAW_BASE           = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public`;
 
 const C = {
   g1:"#EB6100", g2:"#F18D00",
@@ -21,37 +19,35 @@ const SNS_SIZES = [
   { id:"feed_sq", label:"フィード正方形",        w:1080, h:1080 },
 ];
 
-// ── GitHub API ────────────────────────────────────────────
-async function ghGet(path) {
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
-    { headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json" } }
-  );
-  if (!res.ok) return null;
-  return res.json();
-}
-
+// ── サーバーサイドAPI経由のGitHub操作 ─────────────────────
 async function ghPut(path, base64, message) {
-  const existing = await ghGet(path);
-  const body = { message, content:base64, branch:GITHUB_BRANCH };
-  if (existing?.sha) body.sha = existing.sha;
-  const res = await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
-    { method:"PUT", headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" }, body:JSON.stringify(body) }
-  );
+  const res = await fetch(`/api/github?path=${encodeURIComponent(path)}`, {
+    method:  "PUT",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ content: base64, message }),
+  });
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`GitHub PUT失敗 [${res.status}]: ${errText}`);
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`PUT失敗 [${res.status}]: ${err.error || ""}`);
   }
 }
 
 async function ghDelete(path, message) {
-  const existing = await ghGet(path);
-  if (!existing?.sha) return;
-  await fetch(
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
-    { method:"DELETE", headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json", "Content-Type":"application/json" }, body:JSON.stringify({ message, sha:existing.sha, branch:GITHUB_BRANCH }) }
-  );
+  const res = await fetch(`/api/github?path=${encodeURIComponent(path)}`, {
+    method:  "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ message }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`DELETE失敗 [${res.status}]: ${err.error || ""}`);
+  }
+}
+
+async function ghGetContent(path) {
+  const res = await fetch(`/api/github?path=${encodeURIComponent(path)}`);
+  if (!res.ok) return null;
+  return res.json();
 }
 
 function toBase64(file) {
@@ -62,14 +58,12 @@ function jsonToB64(obj) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
 }
 
-// ── ★修正箇所：tabs.json のデコードをシンプルに ──────────
 async function loadTabsFromGH() {
-  const data = await ghGet("public/tabs.json");
+  const data = await ghGetContent("public/tabs.json");
   if (!data?.content) return [];
-  // GitHub APIはbase64（改行付き）で返す。atob→TextDecoderで確実にUTF-8デコード
-  const raw = data.content.replace(/\n/g, "");
   const decoded = decodeURIComponent(
-    atob(raw).split("").map(c => "%" + c.charCodeAt(0).toString(16).padStart(2,"0")).join("")
+    atob(data.content.replace(/\n/g,""))
+      .split("").map(c => "%" + c.charCodeAt(0).toString(16).padStart(2,"0")).join("")
   );
   const parsed = JSON.parse(decoded);
   if (!Array.isArray(parsed)) throw new Error("tabs.json の形式が不正です");
@@ -153,7 +147,7 @@ function TabManager() {
   };
 
   const handleDelete = async (tab) => {
-    if (!confirm(`「${tab.label}」を削除しますか？\n背景画像・お手本画像も削除されます。`)) return;
+    if (!confirm(`「${tab.label}」を削除しますか？\n背景画像・サンプル画像も削除されます。`)) return;
     try {
       const current = await loadTabsFromGH();
       const updated  = current.filter(t=>t.id!==tab.id);
@@ -194,7 +188,7 @@ function TabManager() {
   );
 }
 
-// ── タブカード（サムネイル＋編集） ────────────────────────
+// ── タブカード ────────────────────────────────────────────
 function TabCard({ tab, onDelete, onUpdate }) {
   const [open,       setOpen]       = useState(false);
   const [label,      setLabel]      = useState(tab.label);
@@ -206,6 +200,10 @@ function TabCard({ tab, onDelete, onUpdate }) {
   const [msg,        setMsg]        = useState("");
   const size = SNS_SIZES.find(s=>s.w===tab.w&&s.h===tab.h)||SNS_SIZES[0];
 
+  // サムネイルはGitHub rawから直接取得（キャッシュバスター付き）
+  const sampleUrl = `${RAW_BASE}${tab.sample}?t=${tab.id}`;
+  const bgUrl     = `${RAW_BASE}${tab.bg}?t=${tab.id}`;
+
   const handleUpdate = async () => {
     if (!label.trim()) { setMsg("タブ名を入力してください"); return; }
     setStatus("uploading"); setMsg("更新中...");
@@ -216,14 +214,14 @@ function TabCard({ tab, onDelete, onUpdate }) {
       }
       if (bgFile) {
         const b64 = await toBase64(bgFile);
-        await ghPut(`public/${tab.bg.replace(/^\//,"")}`,     b64, `Update bg: ${tab.label}`);
+        await ghPut(`public/${tab.bg.replace(/^\//,"")}`, b64, `Update bg: ${tab.label}`);
       }
       const updatedTab = { ...tab, label:label.trim() };
       const current    = await loadTabsFromGH();
       const newTabs    = current.map(t=>t.id===tab.id?updatedTab:t);
       await ghPut("public/tabs.json", jsonToB64(newTabs), `Update tab: ${label}`);
       await triggerDeploy();
-      setStatus("done"); setMsg("✅ 更新しました！約1分後に反映されます。");
+      setStatus("done"); setMsg("✅ 更新しました！");
       onUpdate(updatedTab);
     } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
   };
@@ -231,7 +229,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
   return (
     <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
-        <img src={`${RAW_BASE}${tab.sample}`} alt=""
+        <img src={sampleUrl} alt=""
           onError={e=>e.target.style.visibility="hidden"}
           style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0, background:C.grayLL }} />
         <div style={{ flex:1, minWidth:0 }}>
@@ -251,11 +249,11 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <label style={LS}>タブ名</label>
           <input value={label} onChange={e=>setLabel(e.target.value)} style={IS} />
 
-          <label style={LS}>① お手本画像を差し替え（任意）</label>
+          <label style={LS}>① サンプル画像を差し替え（任意）</label>
           <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={`${RAW_BASE}${tab.sample}`} alt="" onError={e=>e.target.style.visibility="hidden"}
+              <img src={sampleUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
@@ -267,7 +265,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={`${RAW_BASE}${tab.bg}`} alt="" onError={e=>e.target.style.visibility="hidden"}
+              <img src={bgUrl} alt="" onError={e=>e.target.style.visibility="hidden"}
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
@@ -300,7 +298,7 @@ function AddTabForm({ onAdded }) {
 
   const submit = async () => {
     if (!label.trim()) { setMsg("タブ名を入力してください"); return; }
-    if (!sampleFile)   { setMsg("お手本画像を選択してください"); return; }
+    if (!sampleFile)   { setMsg("サンプル画像を選択してください"); return; }
     if (!bgFile)       { setMsg("背景画像を選択してください"); return; }
     setStatus("uploading"); setMsg("① 背景画像をアップロード中...");
     try {
@@ -309,11 +307,10 @@ function AddTabForm({ onAdded }) {
       const smName = `sample_${tabId}.png`;
       const size   = SNS_SIZES.find(s=>s.id===sizeId)||SNS_SIZES[0];
 
-      // 画像を1枚ずつ直列でアップロード（並列にしない）
       const bgB64 = await toBase64(bgFile);
       await ghPut(`public/${bgName}`, bgB64, `Add bg: ${label}`);
 
-      setMsg("② お手本画像をアップロード中...");
+      setMsg("② サンプル画像をアップロード中...");
       const smB64 = await toBase64(sampleFile);
       await ghPut(`public/${smName}`, smB64, `Add sample: ${label}`);
 
@@ -324,7 +321,7 @@ function AddTabForm({ onAdded }) {
 
       await triggerDeploy();
       setStatus("done");
-      setMsg("✅ 追加しました！約1分後にアプリに反映されます。");
+      setMsg("✅ 追加しました！");
       onAdded(newTab);
     } catch(e) {
       setStatus("error");
@@ -348,8 +345,8 @@ function AddTabForm({ onAdded }) {
         ))}
       </div>
 
-      <label style={LS}>① お手本バナー画像</label>
-      <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="お手本画像をドロップ / タップして選択" />
+      <label style={LS}>① サンプルバナー画像</label>
+      <DropZone preview={samplePrev} onFile={f=>{ setSampleFile(f); setSamplePrev(URL.createObjectURL(f)); }} label="サンプル画像をドロップ / タップして選択" />
 
       <label style={{ ...LS, marginTop:12 }}>② 背景画像</label>
       <DropZone preview={bgPrev} onFile={f=>{ setBgFile(f); setBgPrev(URL.createObjectURL(f)); }} label="背景画像をドロップ / タップして選択" />
@@ -374,9 +371,18 @@ function StampManager() {
   const loadStamps = async () => {
     setLoading(true);
     try {
+      const res = await fetch(`/api/github?path=${encodeURIComponent("public/stamps")}`);
+      if (res.ok) {
+        const data = await res.json();
+        // ディレクトリ一覧はcontentフィールドではなくGitHub APIが配列を返す
+        // サーバー側でそのまま返すよう対応が必要なので、ここでは既存方式を維持
+      }
+    } catch {}
+    // スタンプはGitHub APIのディレクトリ取得が必要なので既存方式を維持
+    try {
       const res = await fetch(
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/public/stamps`,
-        { headers:{ Authorization:`token ${GITHUB_TOKEN}`, Accept:"application/vnd.github.v3+json" } }
+        `https://api.github.com/repos/${GITHUB_OWNER}/banner-maker/contents/public/stamps`,
+        { headers:{ Accept:"application/vnd.github.v3+json" } }
       );
       if (res.ok) {
         const files = await res.json();
@@ -433,7 +439,7 @@ function StampManager() {
           {stamps.map(name=>(
             <div key={name} style={{ background:C.white, borderRadius:10, border:`1px solid ${C.grayLL}`, overflow:"hidden", textAlign:"center" }}>
               <div style={{ background:"repeating-conic-gradient(#ddd 0% 25%,#fff 0% 50%) 0 0/14px 14px", padding:8 }}>
-                <img src={`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public/stamps/${name}`} alt={name} style={{ width:"100%", maxHeight:80, objectFit:"contain", display:"block", margin:"0 auto" }} />
+                <img src={`https://raw.githubusercontent.com/${GITHUB_OWNER}/banner-maker/main/public/stamps/${name}`} alt={name} style={{ width:"100%", maxHeight:80, objectFit:"contain", display:"block", margin:"0 auto" }} />
               </div>
               <div style={{ padding:"6px 8px" }}>
                 <p style={{ margin:0, fontSize:10, color:C.gray, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{name}</p>
