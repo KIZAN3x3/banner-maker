@@ -6,6 +6,7 @@ const GITHUB_OWNER   = "KIZAN3x3";
 const GITHUB_REPO    = "banner-maker";
 const GITHUB_BRANCH  = "main";
 const BASE_URL       = "https://banner-maker-iota.vercel.app";
+const VERCEL_DEPLOY_HOOK = "https://api.vercel.com/v1/integrations/deploy/prj_J4dUU6AAwHjkqY6EDQIdwzxRKPsP/tjrYEm5kD5";
 
 const C = {
   g1:"#EB6100", g2:"#F18D00",
@@ -56,6 +57,10 @@ function toBase64(file) {
 
 function jsonToB64(obj) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(obj, null, 2))));
+}
+
+async function triggerDeploy() {
+  try { await fetch(VERCEL_DEPLOY_HOOK, { method:"POST" }); } catch {}
 }
 
 // tabs.jsonをGitHub APIから取得（キャッシュなし）
@@ -150,6 +155,7 @@ function TabManager() {
     try { await ghDelete(`public/${tab.bg.replace(/^\//,"")}`,     `Delete bg: ${tab.id}`); } catch {}
     try { await ghDelete(`public/${tab.sample.replace(/^\//,"")}`, `Delete sample: ${tab.id}`); } catch {}
     setTabs(updated);
+    await triggerDeploy();
   };
 
   const handleUpdate = (updatedTab) => {
@@ -211,7 +217,8 @@ function TabCard({ tab, onDelete, onUpdate }) {
       const current    = await loadTabsFromGH();
       const newTabs    = current.map(t=>t.id===tab.id?updatedTab:t);
       await ghPut("public/tabs.json", jsonToB64(newTabs), `Rename tab: ${label}`);
-      setStatus("done"); setMsg("✅ 更新しました！");
+      await triggerDeploy();
+      setStatus("done"); setMsg("✅ 更新しました！Vercelに自動デプロイ中...");
       onUpdate(updatedTab);
     } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
   };
@@ -303,7 +310,8 @@ function AddTabForm({ onAdded }) {
       const currentTabs = await loadTabsFromGH();
       const newTab = { id:tabId, label:label.trim(), bg:`/${bgName}`, sample:`/${smName}`, w:size.w, h:size.h };
       await ghPut("public/tabs.json", jsonToB64([...currentTabs, newTab]), `Add tab: ${label}`);
-      setStatus("done"); setMsg("✅ 追加しました！");
+      await triggerDeploy();
+      setStatus("done"); setMsg("✅ 追加しました！Vercelに自動デプロイ中...");
       onAdded(newTab);
     } catch(e) { setStatus("error"); setMsg("エラー: "+e.message); }
   };
@@ -376,6 +384,7 @@ function StampManager() {
     setStamps(updated);
     // index.json更新
     await ghPut("public/stamps/index.json", btoa(unescape(encodeURIComponent(JSON.stringify(updated)))), "Update stamps index");
+    await triggerDeploy();
     setUploading(false);
   };
 
@@ -385,6 +394,7 @@ function StampManager() {
     const updated = stamps.filter(s=>s!==name);
     setStamps(updated);
     await ghPut("public/stamps/index.json", btoa(unescape(encodeURIComponent(JSON.stringify(updated)))), "Update stamps index");
+    await triggerDeploy();
   };
 
   if (loading) return <div style={{ textAlign:"center", padding:40 }}><Spinner size={32}/></div>;
