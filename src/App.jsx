@@ -29,7 +29,12 @@ const FONTS = [
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
 
+<<<<<<< HEAD
 const TABS = []; // tabs.jsonから動的に読み込む
+=======
+const TABS = [
+  { id:"tab_1777180005614", label:"当選バナー", bg:"/bg_tab_1777180005614.png", sample:"/sample_tab_1777180005614.png", size:{ id:"feed_v", w:1080, h:1350 } },]; // 管理者ページから動的に読み込むため空
+>>>>>>> be292c2c75207f256e4dc8c22ad5b726de6cfd09
 
 // tabs.jsonからタブ情報を読み込む（App.jsxは触らない）
 async function fetchTabsFromGitHub() {
