@@ -212,7 +212,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
   return (
     <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
-        <img src={tab.sample} alt=""
+        <img src={`https://banner-maker-iota.vercel.app${tab.sample}`} alt=""
           onError={e=>e.target.style.visibility="hidden"}
           style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0, background:C.grayLL }} />
         <div style={{ flex:1, minWidth:0 }}>
@@ -236,7 +236,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={tab.sample} alt="" onError={e=>e.target.style.visibility="hidden"}
+              <img src={`https://banner-maker-iota.vercel.app${tab.sample}`} alt="" onError={e=>e.target.style.visibility="hidden"}
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
@@ -248,7 +248,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={tab.bg} alt="" onError={e=>e.target.style.visibility="hidden"}
+              <img src={`https://banner-maker-iota.vercel.app${tab.bg}`} alt="" onError={e=>e.target.style.visibility="hidden"}
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
