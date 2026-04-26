@@ -6,6 +6,7 @@ const GITHUB_OWNER       = "KIZAN3x3";
 const GITHUB_REPO        = "banner-maker";
 const GITHUB_BRANCH      = "main";
 const VERCEL_DEPLOY_HOOK = "https://api.vercel.com/v1/integrations/deploy/prj_J4dUU6AAwHjkqY6EDQIdwzxRKPsP/tjrYEm5kD5";
+const RAW_BASE = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public`;
 
 const C = {
   g1:"#EB6100", g2:"#F18D00",
@@ -230,7 +231,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
   return (
     <div style={{ background:C.white, borderRadius:12, border:`1px solid ${C.grayLL}`, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px" }}>
-        <img src={`https://banner-maker-iota.vercel.app${tab.sample}`} alt=""
+        <img src={`${RAW_BASE}${tab.sample}`} alt=""
           onError={e=>e.target.style.visibility="hidden"}
           style={{ width:40, height:56, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, flexShrink:0, background:C.grayLL }} />
         <div style={{ flex:1, minWidth:0 }}>
@@ -254,7 +255,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={`https://banner-maker-iota.vercel.app${tab.sample}`} alt="" onError={e=>e.target.style.visibility="hidden"}
+              <img src={`${RAW_BASE}${tab.sample}`} alt="" onError={e=>e.target.style.visibility="hidden"}
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
@@ -266,7 +267,7 @@ function TabCard({ tab, onDelete, onUpdate }) {
           <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:12 }}>
             <div>
               <p style={{ margin:"0 0 4px", fontSize:10, color:C.gray }}>現在</p>
-              <img src={`https://banner-maker-iota.vercel.app${tab.bg}`} alt="" onError={e=>e.target.style.visibility="hidden"}
+              <img src={`${RAW_BASE}${tab.bg}`} alt="" onError={e=>e.target.style.visibility="hidden"}
                 style={{ width:48, height:68, objectFit:"cover", borderRadius:6, border:`1px solid ${C.grayLL}`, background:C.grayLL }} />
             </div>
             <div style={{ flex:1 }}>
