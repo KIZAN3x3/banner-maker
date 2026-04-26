@@ -312,14 +312,16 @@ function StampManager() {
     setLoading(false);
   };
 
-  const uploadStamp = async (file) => {
+  const uploadStamp = async (files) => {
     setUploading(true);
-    try {
-      const b64 = await toBase64(file);
-      await uploadFile(`public/stamps/${file.name}`, b64, `Add stamp: ${file.name}`);
-      setTimeout(loadStamps, 1000);
-    } catch(e) { alert("エラー: "+e.message); }
+    for (const file of files) {
+      try {
+        const b64 = await toBase64(file);
+        await uploadFile(`public/stamps/${file.name}`, b64, `Add stamp: ${file.name}`);
+      } catch(e) { alert("エラー: "+e.message); }
+    }
     setUploading(false);
+    setTimeout(loadStamps, 1500);
   };
 
   const deleteStamp = async (name) => {
@@ -336,7 +338,7 @@ function StampManager() {
         <p style={{ margin:0, fontSize:16, fontWeight:700 }}>スタンプ管理</p>
         <label style={{ padding:"8px 16px", background:uploading?C.grayL:`linear-gradient(135deg,${C.g1},${C.g2})`, border:"none", borderRadius:10, color:C.white, fontSize:13, fontWeight:700, cursor:uploading?"not-allowed":"pointer" }}>
           {uploading?"アップロード中...":"＋ スタンプを追加"}
-          <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={uploading} onChange={e=>{ Array.from(e.target.files).forEach(uploadStamp); e.target.value=""; }} />
+          <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={uploading} onChange={e=>{ uploadStamp(Array.from(e.target.files)); e.target.value=""; }} />
         </label>
       </div>
 

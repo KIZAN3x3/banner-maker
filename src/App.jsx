@@ -29,8 +29,30 @@ const FONTS = [
 
 const TEXT_SIZES = { large:120, medium:72, small:40 };
 
-const TABS = [
-  { id:"tab_1777178708425", label:"当選バナー", bg:"/bg_tab_1777178708425.png", sample:"/sample_tab_1777178708425.png", size:{ id:"feed_v", w:1080, h:1350 } },];
+const TABS = []; // 管理者ページから動的に読み込むため空
+
+// GitHubからTABSを読み込む
+async function fetchTabsFromGitHub() {
+  try {
+    const res = await fetch(
+      `https://raw.githubusercontent.com/KIZAN3x3/banner-maker/main/src/App.jsx?t=${Date.now()}`
+    );
+    if (!res.ok) return [];
+    const content = await res.text();
+    const match = content.match(/const TABS = \[([\s\S]*?)\];/);
+    if (!match) return [];
+    const lines = match[1].split("\n").filter(l=>l.includes('id:'));
+    return lines.map(l=>{
+      const id     = (l.match(/id:"([^"]+)"/)      ||[])[1];
+      const label  = (l.match(/label:"([^"]+)"/)   ||[])[1];
+      const bg     = (l.match(/bg:"([^"]+)"/)      ||[])[1];
+      const sample = (l.match(/sample:"([^"]+)"/)  ||[])[1];
+      const sw     = (l.match(/w:(\d+)/)            ||[])[1];
+      const sh     = (l.match(/h:(\d+)/)            ||[])[1];
+      return id&&label ? { id, label, bg:bg||"", sample:sample||"", w:Number(sw)||1080, h:Number(sh)||1920 } : null;
+    }).filter(Boolean);
+  } catch { return []; }
+}
 
 const CW = 1080;
 const CH = 1920;
@@ -99,7 +121,9 @@ function PasswordScreen({ onAuth }) {
 }
 
 function MainApp() {
-  const [activeTab,  setActiveTab]  = useState("sns"); // SNS枠をデフォルト
+  const [tabs,       setTabs]       = useState([]);
+  const [tabsLoaded, setTabsLoaded] = useState(false);
+  const [activeTab,  setActiveTab]  = useState(null);
   const [screen,     setScreen]     = useState("home");
   const [elements,   setElements]   = useState([]);
   const [selected,   setSelected]   = useState(null);
@@ -115,9 +139,18 @@ function MainApp() {
 
   const previewRef = useRef(null);
   const PW = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
-  const PH = Math.round(PW*CH/CW);
-  const R  = PW/CW;
-  const tab = TABS.find(t=>t.id===activeTab);
+  const PH = Math.round(PW*(tab?.h||1920)/(tab?.w||1080));
+  const R  = PW/(tab?.w||1080);
+  const tab = tabs.find(t=>t.id===activeTab);
+
+  // タブをGitHubから読み込む
+  useEffect(()=>{
+    fetchTabsFromGitHub().then(loaded=>{
+      setTabs(loaded);
+      if(loaded.length>0) setActiveTab(loaded[0].id);
+      setTabsLoaded(true);
+    });
+  },[]);
 
   useEffect(()=>{
     document.fonts.ready.then(()=>
@@ -128,6 +161,7 @@ function MainApp() {
 
   // 背景画像読み込み（キャッシュ回避）
   useEffect(()=>{
+    if(!tab) return;
     setBgImg(null); setSampleImg(null);
     const ts = Date.now();
     const bg = new Image();
@@ -137,7 +171,7 @@ function MainApp() {
     const sm = new Image();
     sm.onload = () => setSampleImg(sm);
     sm.src = tab.sample + "?t=" + ts;
-  },[activeTab]);
+  },[activeTab, tab]);
 
   // Canvas描画
   useEffect(()=>{
@@ -215,6 +249,27 @@ function MainApp() {
   };
 
   const reset = ()=>{ setElements([]); setSelected(null); setEditing(null); setHistory([]); setDownloadUrl(null); setScreen("home"); };
+  // タブ読み込み中
+  if (!tabsLoaded) return (
+    <div style={{ minHeight:"100vh", background:C.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans JP',sans-serif" }}>
+      <div style={{ textAlign:"center" }}>
+        <Spinner size={40} />
+        <p style={{ marginTop:16, color:C.gray, fontSize:13 }}>読み込み中...</p>
+      </div>
+    </div>
+  );
+
+  // タブなし
+  if (tabsLoaded && tabs.length===0) return (
+    <div style={{ minHeight:"100vh", background:C.cream, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Noto Sans JP',sans-serif", padding:20 }}>
+      <div style={{ textAlign:"center", maxWidth:300 }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>📋</div>
+        <p style={{ fontSize:16, fontWeight:700, color:C.ink, margin:"0 0 8px" }}>タブがありません</p>
+        <p style={{ fontSize:13, color:C.gray, lineHeight:1.7 }}>管理者ページでテンプレートを追加してください</p>
+      </div>
+    </div>
+  );
+
   const tabSaves = Object.values(saves).filter(s=>s.tab===activeTab).sort((a,b)=>b.createdAt-a.createdAt);
 
   return (
@@ -228,7 +283,7 @@ function MainApp() {
 
       {screen==="home"&&(
         <div style={{ background:C.white, borderBottom:`1px solid ${C.grayLL}`, display:"flex", overflowX:"auto", position:"sticky", top:56, zIndex:100, WebkitOverflowScrolling:"touch" }}>
-          {TABS.map(t=>(
+          {tabs.map(t=>(
             <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{ flexShrink:0, padding:"11px 14px", background:"none", border:"none", borderBottom:`3px solid ${activeTab===t.id?C.g1:"transparent"}`, color:activeTab===t.id?C.g1:C.gray, fontSize:12, fontWeight:activeTab===t.id?700:400, fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer" }}>{t.label}</button>
           ))}
         </div>
