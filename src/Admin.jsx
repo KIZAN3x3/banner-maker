@@ -140,7 +140,7 @@ function TabManager() {
   const loadTabs = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/public/tabs.json?t=${Date.now()}`);
+      const res = await fetch(`/tabs.json?t=${Date.now()}`);
       if (res.ok) {
         setTabs(await res.json());
       } else {
