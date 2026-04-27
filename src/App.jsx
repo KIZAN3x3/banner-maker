@@ -240,7 +240,7 @@ function MainApp() {
         )}
 
         {screen==="home"    && <HomeScreen tab={tab} tabSaves={tabSaves} onNew={()=>{setElements([]);setSelected(null);setEditing(null);setHistory([]);setScreen("preview");}} onLoad={loadWork} onDelete={deleteWork} onRename={renameWork} />}
-        {screen==="preview" && <PreviewScreen elements={elements} setElements={setElements} selected={selected} setSelected={setSelected} editing={editing} setEditing={setEditing} bgImg={bgImg} sampleImg={sampleImg} showSample={showSample} setShowSample={setShowSample} parts={parts} canvasRef={previewRef} PW={PW} PH={PH} R={R} addText={addText} addImage={addImage} addPart={addPart} updateEl={updateEl} deleteEl={deleteEl} moveLayer={moveLayer} pushHistory={pushHistory} onGenerate={generate} generating={generating} />}
+        {screen==="preview" && <PreviewScreen tab={tab} elements={elements} setElements={setElements} selected={selected} setSelected={setSelected} editing={editing} setEditing={setEditing} bgImg={bgImg} sampleImg={sampleImg} showSample={showSample} setShowSample={setShowSample} parts={parts} canvasRef={previewRef} PW={PW} PH={PH} R={R} addText={addText} addImage={addImage} addPart={addPart} updateEl={updateEl} deleteEl={deleteEl} moveLayer={moveLayer} pushHistory={pushHistory} onGenerate={generate} generating={generating} />}
         {screen==="done"    && <DoneScreen downloadUrl={downloadUrl} onReset={reset} onBack={()=>setScreen("preview")} />}
       </div>
 
@@ -311,9 +311,9 @@ function ScrollBar({ targetId }) {
   },[targetId]);
 
   return (
-    <div ref={trackRef} style={{ width:10, position:"sticky", top:0, height:"100vh", background:"rgba(0,0,0,0.06)", flexShrink:0, borderRadius:5, margin:"4px 4px 4px 0" }}>
+    <div ref={trackRef} style={{ width:14, position:"sticky", top:0, height:"100vh", background:"rgba(0,0,0,0.15)", flexShrink:0, borderRadius:7, margin:"4px 4px 4px 2px" }}>
       <div ref={thumbRef} onMouseDown={onMouseDown}
-        style={{ position:"absolute", left:1, width:8, background:C.g1, borderRadius:4, cursor:"pointer", transition:"opacity 0.2s", opacity:0, minHeight:40 }} />
+        style={{ position:"absolute", left:2, width:10, background:"#C4520E", borderRadius:5, cursor:"pointer", transition:"opacity 0.2s", opacity:0, minHeight:40, boxShadow:"0 2px 6px rgba(0,0,0,0.3)" }} />
     </div>
   );
 }
@@ -364,7 +364,7 @@ function HomeScreen({ tab, tabSaves, onNew, onLoad, onDelete, onRename }) {
   );
 }
 
-function PreviewScreen({ elements, setElements, selected, setSelected, editing, setEditing, bgImg, sampleImg, showSample, setShowSample, parts, canvasRef, PW, PH, R, addText, addImage, addPart, updateEl, deleteEl, moveLayer, pushHistory, onGenerate, generating }) {
+function PreviewScreen({ tab, elements, setElements, selected, setSelected, editing, setEditing, bgImg, sampleImg, showSample, setShowSample, parts, canvasRef, PW, PH, R, addText, addImage, addPart, updateEl, deleteEl, moveLayer, pushHistory, onGenerate, generating }) {
   const dragging    = useRef(null);
   const pinchRef    = useRef({ lastDist:null });
   const imgInputRef = useRef();
