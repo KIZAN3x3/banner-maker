@@ -475,16 +475,24 @@ function PreviewScreen({ tab, elements, setElements, selected, setSelected, edit
                   </div>
                 </div>
 
-                {/* ★回転スライダー（選択中の要素） */}
+                {/* 回転・サイズスライダー（選択中の要素） */}
                 {selected===el.id&&editing!==el.id&&(
-                  <div style={{ padding:"8px 14px 10px", background:`${C.g1}06`, borderTop:`1px solid ${C.grayLL}` }}>
+                  <div style={{ padding:"8px 14px 10px", background:`${C.g1}06`, borderTop:`1px solid ${C.grayLL}`, display:"flex", flexDirection:"column", gap:6 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                      <span style={{ fontSize:11, color:C.gray, flexShrink:0 }}>🔄 回転</span>
+                      <span style={{ fontSize:11, color:C.gray, flexShrink:0, width:48 }}>🔄 回転</span>
                       <input type="range" min="-180" max="180" value={el.rotate||0}
                         onChange={e=>updateEl(el.id,{rotate:Number(e.target.value)})}
                         style={{ flex:1, accentColor:C.g1 }} />
                       <span style={{ fontSize:11, color:C.gray, width:38, textAlign:"right", flexShrink:0 }}>{el.rotate||0}°</span>
                       <button onClick={()=>updateEl(el.id,{rotate:0})} style={{ padding:"2px 8px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:5, fontSize:10, color:C.gray, cursor:"pointer", flexShrink:0 }}>リセット</button>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:11, color:C.gray, flexShrink:0, width:48 }}>⤢ サイズ</span>
+                      <input type="range" min="0.05" max="5" step="0.01" value={el.scale||1}
+                        onChange={e=>updateEl(el.id,{scale:Number(e.target.value)})}
+                        style={{ flex:1, accentColor:C.g1 }} />
+                      <span style={{ fontSize:11, color:C.gray, width:38, textAlign:"right", flexShrink:0 }}>{Math.round((el.scale||1)*100)}%</span>
+                      <button onClick={()=>updateEl(el.id,{scale:1})} style={{ padding:"2px 8px", background:"none", border:`1px solid ${C.grayL}`, borderRadius:5, fontSize:10, color:C.gray, cursor:"pointer", flexShrink:0 }}>リセット</button>
                     </div>
                   </div>
                 )}
