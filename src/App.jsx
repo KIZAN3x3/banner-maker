@@ -124,7 +124,7 @@ function MainApp() {
   const tab = tabs.find(t=>t.id===activeTab);
   const CW_ = tab?.w || 1080;
   const CH_ = tab?.h || 1920;
-  const PW  = Math.min(typeof window!=="undefined"?window.innerWidth-48:380, 420);
+  const PW  = Math.min(typeof window!=="undefined"?window.innerWidth-48-14:380, 420);
   const PH  = Math.round(PW*CH_/CW_);
   const R   = PW/CW_;
 
@@ -414,7 +414,7 @@ function PreviewScreen({ tab, elements, setElements, selected, setSelected, edit
         </div>
       )}
 
-      <div style={{ borderRadius:10, overflow:"hidden", border:`2px solid ${selected?C.g1:C.grayL}`, boxShadow:`0 8px 32px ${C.g1}20`, transition:"border-color 0.2s" }}>
+      <div style={{ overflow:"hidden", border:`2px solid ${selected?C.g1:C.grayL}`, boxShadow:`0 8px 32px ${C.g1}20`, transition:"border-color 0.2s" }}>
         <canvas ref={canvasRef} width={PW} height={PH}
           onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
