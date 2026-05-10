@@ -585,18 +585,23 @@ function DoneScreen({ downloadUrl, onReset, onBack }) {
   );
 }
 
-// ★rotate対応
 function drawCanvas(canvas, elements, bgImg, W, H, selectedId, CW, CH) {
   if(!canvas)return;
   const r=W/CW;
   const ctx=canvas.getContext("2d");
   ctx.clearRect(0,0,W,H);
+  // ★キャンバス外をトリミング
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0,0,W,H);
+  ctx.clip();
   if(bgImg){ ctx.drawImage(bgImg,0,0,W,H); }
   else { const g=ctx.createLinearGradient(0,0,W,0); g.addColorStop(0,"rgb(235,97,0)"); g.addColorStop(1,"rgb(241,141,0)"); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
   [...elements].sort((a,b)=>a.zIndex-b.zIndex).forEach(el=>{
     if(el.type==="image") drawImageEl(ctx,el,r,selectedId===el.id);
     else drawTextEl(ctx,el,r,selectedId===el.id);
   });
+  ctx.restore();
 }
 
 function drawTextEl(ctx, el, r, isSelected) {
