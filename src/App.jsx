@@ -407,8 +407,8 @@ function PreviewScreen({ tab, elements, setElements, selected, setSelected, edit
 
   return (
     <div style={{ maxWidth:520, margin:"0 auto", padding:"12px 16px 40px" }}>
-      {showSample&&sampleImg&&(
-        <div style={{ marginBottom:12, borderRadius:10, overflow:"hidden", border:`1px solid ${C.grayL}` }}>
+      {sampleImg&&(
+        <div style={{ marginBottom:12, border:`1px solid ${C.grayL}` }}>
           <p style={{ margin:0, padding:"6px 12px", fontSize:11, color:C.gray, background:C.white }}>📌 サンプルバナー（参考）</p>
           <img src={sampleImg.src} style={{ width:"50%", display:"block" }} />
         </div>
@@ -431,7 +431,6 @@ function PreviewScreen({ tab, elements, setElements, selected, setSelected, edit
           <input ref={imgInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{if(e.target.files[0])addImage(e.target.files[0]);e.target.value="";}} />
         </label>
         <button onClick={()=>setShowParts(v=>!v)} style={TB(showParts?"#5B21B6":"#7C3AED")}>＋ パーツ{parts.length===0?" (未登録)":""}</button>
-        <button onClick={()=>setShowSample(v=>!v)} style={TB(showSample?"#555":"#888")}>{showSample?"サンプルを隠す":"サンプルを表示"}</button>
       </div>
 
       {showParts&&(
